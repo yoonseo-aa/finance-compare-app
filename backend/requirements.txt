@@ -1,7 +1,6 @@
-asgiref==3.11.1
-Django==5.2.15
+﻿Django==5.2.15
+djangorestframework==3.17.1
 django-cors-headers==4.9.0
 django-environ==0.14.0
-djangorestframework==3.17.1
-sqlparse==0.5.5
-tzdata==2026.2
+requests==2.32.4
+python-dotenv==1.1.0
