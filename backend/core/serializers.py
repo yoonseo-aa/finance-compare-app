@@ -34,6 +34,7 @@ class ProductDetailSerializer(ProductListSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     display_name = serializers.CharField(read_only=True)
+    has_usable_password = serializers.SerializerMethodField()
     joined_products = ProductListSerializer(many=True, read_only=True)
 
     class Meta:
@@ -44,6 +45,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email",
             "nickname",
             "display_name",
+            "has_usable_password",
             "age",
             "age_group",
             "marital_status",
@@ -59,6 +61,9 @@ class UserSerializer(serializers.ModelSerializer):
             "risk_tolerance",
             "joined_products",
         )
+
+    def get_has_usable_password(self, obj):
+        return obj.has_usable_password()
 
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

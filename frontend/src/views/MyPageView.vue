@@ -16,10 +16,14 @@ onMounted(() => auth.bootstrap());
         <h1>마이페이지</h1>
         <p>{{ auth.user?.display_name || auth.user?.username }}님의 추천 정보와 가입 상품을 한곳에서 관리합니다.</p>
       </div>
-      <RouterLink class="btn primary" to="/recommend-profile">예적금 추천 진단</RouterLink>
     </section>
 
     <section class="mypage-grid" v-if="auth.user">
+      <RouterLink class="mypage-card" to="/profile">
+        <span>정보 관리</span>
+        <strong>계정 정보 수정</strong>
+        <p>닉네임과 계정 정보를 수정합니다.</p>
+      </RouterLink>
       <RouterLink class="mypage-card highlight" to="/recommend-profile">
         <span>추천 준비</span>
         <strong>내 상황 입력하기</strong>
@@ -30,15 +34,16 @@ onMounted(() => auth.bootstrap());
         <strong>맞춤 예적금 보기</strong>
         <p>상품별 추천점수와 추천 이유를 확인합니다.</p>
       </RouterLink>
-      <RouterLink class="mypage-card" to="/profile">
-        <span>정보 관리</span>
-        <strong>프로필 수정</strong>
-        <p>대시보드 기준과 추천 프로필을 다시 조정합니다.</p>
-      </RouterLink>
+      
       <RouterLink class="mypage-card" to="/dashboard">
         <span>분석</span>
         <strong>개인화 대시보드</strong>
         <p>목표 달성률과 예상 만기 금액을 확인합니다.</p>
+      </RouterLink>
+      <RouterLink class="mypage-card" to="/favorites">
+        <span>관심 상품</span>
+        <strong>관심 목록 확인</strong>
+        <p>관심 목록에 담은 예적금 상품을 다시 확인합니다.</p>
       </RouterLink>
     </section>
 

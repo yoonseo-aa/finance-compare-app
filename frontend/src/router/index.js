@@ -4,6 +4,7 @@ import { getToken } from "../api/client";
 import BankSearchView from "../views/BankSearchView.vue";
 import CommunityView from "../views/CommunityView.vue";
 import DashboardView from "../views/DashboardView.vue";
+import FavoritesView from "../views/FavoritesView.vue";
 import HomeView from "../views/HomeView.vue";
 import LoginView from "../views/LoginView.vue";
 import MyPageView from "../views/MyPageView.vue";
@@ -24,6 +25,7 @@ const router = createRouter({
     { path: "/", name: "home", component: HomeView },
     { path: "/products", name: "products", component: ProductsView },
     { path: "/products/:id", name: "product-detail", component: ProductDetailView },
+    { path: "/favorites", name: "favorites", component: FavoritesView, meta: { requiresAuth: true } },
     { path: "/dashboard", name: "dashboard", component: DashboardView, meta: { requiresAuth: true } },
     { path: "/spot", name: "spot", component: SpotView },
     { path: "/videos", name: "videos", component: VideosView },

@@ -1,6 +1,8 @@
 ﻿import os
 from datetime import datetime
 
+import requests
+
 from django.db.models import Max, Q
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
@@ -23,7 +25,7 @@ from .serializers import (
     SignupSerializer,
     UserSerializer,
 )
-from .services import FinlifeAPIError, fetch_finlife_products, load_spot_price_data, seed_demo_products, youtube_search
+from .services import FinlifeAPIError, fetch_finlife_products, load_spot_price_data, naver_news_search, recommend_news_with_ai, seed_demo_products, youtube_search
 from .social_auth import authenticate_social, build_authorization_url
 
 
@@ -92,6 +94,31 @@ class MeAPIView(APIView):
         return Response(UserSerializer(request.user).data)
 
 
+class PasswordChangeAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if not user.has_usable_password():
+            return Response(
+                {"detail": "소셜 로그인 계정은 FinPick에서 비밀번호를 변경할 수 없습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        current_password = request.data.get("current_password", "")
+        new_password = request.data.get("new_password", "")
+        if not current_password or not new_password:
+            return Response({"detail": "현재 비밀번호와 새 비밀번호를 입력해주세요."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(new_password) < 8:
+            return Response({"detail": "새 비밀번호는 8자 이상이어야 합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        if not user.check_password(current_password):
+            return Response({"detail": "현재 비밀번호가 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+        return Response(UserSerializer(user).data)
+
+
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = FinancialProduct.objects.prefetch_related("options").all()
 
@@ -121,10 +148,13 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         banks = FinancialProduct.objects.values_list("bank_name", flat=True).distinct().order_by("bank_name")
         return Response(list(banks))
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=["post", "delete"], permission_classes=[IsAuthenticated])
     def join(self, request, pk=None):
         product = self.get_object()
-        request.user.joined_products.add(product)
+        if request.method == "DELETE":
+            request.user.joined_products.remove(product)
+        else:
+            request.user.joined_products.add(product)
         return Response(UserSerializer(request.user).data)
 
 
@@ -209,6 +239,18 @@ def videos(request):
                 "error": "Video search is temporarily unavailable. Please check the YouTube API key.",
             }
         )
+
+
+@api_view(["GET"])
+def news_search(request):
+    query = request.query_params.get("query", "").strip()
+    if not query:
+        return Response({"query": query, "results": [], "articles": [], "used_ai": False})
+    try:
+        articles, used_ai = recommend_news_with_ai(query, naver_news_search(query))
+        return Response({"query": query, "results": articles, "articles": articles, "used_ai": used_ai})
+    except requests.RequestException:
+        return Response({"query": query, "results": [], "articles": [], "used_ai": False, "error": "뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해주세요."})
 
 
 @api_view(["GET"])

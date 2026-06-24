@@ -158,9 +158,9 @@ onMounted(loadDashboard);
     </div>
 
     <div class="filter-bar dashboard-action-bar">
-      <RouterLink class="btn primary" to="/recommend-profile">추천 정보 수정</RouterLink>
-      <RouterLink class="btn ghost" to="/recommendations">추천 결과 보기</RouterLink>
-      <RouterLink class="btn ghost" to="/products">상품 비교</RouterLink>
+      <RouterLink class="btn primary" to="/recommend-profile">나의 정보 입력하기</RouterLink>
+      <RouterLink class="btn ghost" to="/recommendations">추천 결과 보러가기</RouterLink>
+      <RouterLink class="btn ghost" to="/products">상품 보러가기</RouterLink>
     </div>
 
     <StatusBlock :loading="loading" :error="error" />
@@ -239,7 +239,7 @@ onMounted(loadDashboard);
         </div>
       </section>
 
-      <section class="dashboard-chart-grid">
+      <!-- <section class="dashboard-chart-grid">
         <article class="content-panel dashboard-sub-chart">
           <div class="chart-title-row compact-chart-head">
             <div>
@@ -258,7 +258,7 @@ onMounted(loadDashboard);
           </div>
           <canvas ref="conditionCanvas"></canvas>
         </article>
-      </section>
+      </section> -->
     </template>
   </main>
 </template>

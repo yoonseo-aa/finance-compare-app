@@ -1,184 +1,163 @@
 <script setup>
-import { Chart } from "chart.js/auto";
-import { nextTick, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 
+import { apiFetch } from "../api/client";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
-const chartCanvas = ref(null);
-const saved = ref(false);
-let chart = null;
+const saving = ref(false);
+const changingPassword = ref(false);
+const infoMessage = ref("");
+const passwordMessage = ref("");
+const error = ref("");
 
-const form = reactive({
-  email: "",
-  nickname: "",
-  age: null,
-  age_group: "",
-  marital_status: "",
-  has_children: null,
-  region: "",
-  income_level: "",
-  asset_level: "",
-  employment_status: "",
-  saving_purpose: "",
-  savings_goal: 1000000,
-  monthly_saving: 400000,
-  preferred_term: 12,
-  risk_tolerance: "stable"
-});
+const form = reactive({ email: "", nickname: "" });
+const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
+const canChangePassword = computed(() => auth.user?.has_usable_password === true);
 
 function syncForm() {
-  if (!auth.user) return;
-  Object.assign(form, {
-    email: auth.user.email || "",
-    nickname: auth.user.nickname || "",
-    age: auth.user.age,
-    age_group: auth.user.age_group || "",
-    marital_status: auth.user.marital_status || "",
-    has_children: auth.user.has_children,
-    region: auth.user.region || "",
-    income_level: auth.user.income_level || "",
-    asset_level: auth.user.asset_level || "",
-    employment_status: auth.user.employment_status || "",
-    saving_purpose: auth.user.saving_purpose || "",
-    savings_goal: auth.user.savings_goal,
-    monthly_saving: auth.user.monthly_saving,
-    preferred_term: auth.user.preferred_term,
-    risk_tolerance: auth.user.risk_tolerance || "stable"
-  });
+  form.email = auth.user?.email || "";
+  form.nickname = auth.user?.nickname || "";
 }
 
-function renderChart() {
-  if (!chartCanvas.value || !auth.user) return;
-  chart?.destroy();
-  const joined = auth.user.joined_products || [];
-  chart = new Chart(chartCanvas.value, {
-    type: "bar",
-    data: {
-      labels: joined.map(product => product.name),
-      datasets: [{ label: "최고 우대금리", data: joined.map(product => product.best_rate), backgroundColor: "#2563eb" }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-  });
+async function saveBasicInfo() {
+  saving.value = true;
+  error.value = "";
+  infoMessage.value = "";
+  try {
+    await auth.updateProfile({ email: form.email, nickname: form.nickname });
+    syncForm();
+    infoMessage.value = "기본 정보가 저장되었습니다.";
+  } catch (err) {
+    error.value = err.message || "기본 정보를 저장하지 못했습니다.";
+  } finally {
+    saving.value = false;
+  }
 }
 
-async function submit() {
-  await auth.updateProfile(form);
-  saved.value = true;
-  await nextTick();
-  renderChart();
+async function changePassword() {
+  error.value = "";
+  passwordMessage.value = "";
+  if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+    error.value = "모든 비밀번호 항목을 입력해주세요.";
+    return;
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    error.value = "새 비밀번호와 확인 비밀번호가 일치하지 않습니다.";
+    return;
+  }
+
+  changingPassword.value = true;
+  try {
+    const user = await apiFetch("/auth/password/", {
+      method: "POST",
+      body: JSON.stringify({
+        current_password: passwordForm.currentPassword,
+        new_password: passwordForm.newPassword
+      })
+    });
+    auth.setUser(user);
+    passwordForm.currentPassword = "";
+    passwordForm.newPassword = "";
+    passwordForm.confirmPassword = "";
+    passwordMessage.value = "비밀번호가 변경되었습니다.";
+  } catch (err) {
+    error.value = err.message || "비밀번호를 변경하지 못했습니다.";
+  } finally {
+    changingPassword.value = false;
+  }
 }
 
 onMounted(async () => {
   if (!auth.user) await auth.bootstrap();
   syncForm();
-  await nextTick();
-  renderChart();
 });
-
-watch(() => auth.user, syncForm);
 </script>
 
 <template>
-  <main class="container">
-    <div class="section-head">
-      <h1>프로필</h1>
-      <p>추천에 사용할 금융 프로필과 대시보드 기준을 관리합니다.</p>
-    </div>
+  <main class="container account-page-local">
+    <section class="account-hero-local">
+      <span>MY FINPICK</span>
+      <h1>나의 정보 수정</h1>
+      <p>닉네임, 이메일, 비밀번호 등 계정 정보를 관리합니다.</p>
+    </section>
 
-    <section class="detail-layout" v-if="auth.user">
-      <form class="content-panel stack-form" @submit.prevent="submit">
-        <h2>추천 프로필</h2>
-        <label>이메일<input v-model="form.email" type="email"></label>
-        <label>닉네임<input v-model="form.nickname"></label>
+    <p v-if="error" class="account-message-local error">{{ error }}</p>
 
-        <label>나이대
-          <select v-model="form.age_group">
-            <option value="">선택 안 함</option>
-            <option value="child">어린이</option>
-            <option value="youth">청년</option>
-            <option value="middle">중장년</option>
-            <option value="senior">시니어</option>
-          </select>
-        </label>
-        <label>결혼 유무
-          <select v-model="form.marital_status">
-            <option value="">선택 안 함</option>
-            <option value="single">미혼</option>
-            <option value="married">기혼</option>
-          </select>
-        </label>
-        <label>자녀 유무
-          <select v-model="form.has_children">
-            <option :value="null">선택 안 함</option>
-            <option :value="true">있음</option>
-            <option :value="false">없음</option>
-          </select>
-        </label>
-        <label>지역<input v-model="form.region" placeholder="예: 서울, 부산, 경남"></label>
+    <section v-if="auth.user" class="account-layout-local">
+      <form class="account-card-local" @submit.prevent="saveBasicInfo">
+        <div class="account-card-head-local">
+          <span aria-hidden="true">◉</span>
+          <div><h2>기본 정보</h2><p>서비스에서 표시되는 계정 정보를 수정합니다.</p></div>
+        </div>
+        <label>아이디<input :value="auth.user.username" disabled></label>
+        <label>이메일<input v-model="form.email" type="email" autocomplete="email"></label>
+        <label>닉네임<input v-model="form.nickname" maxlength="30" autocomplete="nickname"></label>
+        <p v-if="infoMessage" class="account-message-local success">{{ infoMessage }}</p>
+        <div class="form-actions">
+  <button class="btn primary" type="submit" :disabled="saving">
+    {{ saving ? "저장 중" : "저장" }}
+  </button>
 
-        <label>소득
-          <select v-model="form.income_level">
-            <option value="">선택 안 함</option>
-            <option value="low">낮음</option>
-            <option value="middle">보통</option>
-            <option value="high">높음</option>
-          </select>
-        </label>
-        <label>재산
-          <select v-model="form.asset_level">
-            <option value="">선택 안 함</option>
-            <option value="low">적음</option>
-            <option value="middle">보통</option>
-            <option value="high">많음</option>
-          </select>
-        </label>
-        <label>직업/상태
-          <select v-model="form.employment_status">
-            <option value="">선택 안 함</option>
-            <option value="student">학생</option>
-            <option value="employee">직장인</option>
-            <option value="self_employed">자영업자</option>
-            <option value="retired">은퇴/퇴직</option>
-          </select>
-        </label>
-        <label>저축 목적
-          <select v-model="form.saving_purpose">
-            <option value="">선택 안 함</option>
-            <option value="emergency">비상금</option>
-            <option value="housing">주거/내 집 마련</option>
-            <option value="education">교육/자녀</option>
-            <option value="retirement">노후 준비</option>
-            <option value="travel">여행/목돈</option>
-          </select>
-        </label>
-        <label>성향
-          <select v-model="form.risk_tolerance">
-            <option value="stable">안정형</option>
-            <option value="balanced">균형형</option>
-            <option value="aggressive">수익형</option>
-          </select>
-        </label>
-
-        <h2>대시보드 기준</h2>
-        <label>목표 금액<input v-model.number="form.savings_goal" type="number" min="0"></label>
-        <label>월 저축 가능 금액<input v-model.number="form.monthly_saving" type="number" min="0"></label>
-        <label>선호 기간<input v-model.number="form.preferred_term" type="number" min="1"></label>
-
-        <button class="btn primary" type="submit">수정</button>
-        <p v-if="saved" class="success-text">저장되었습니다.</p>
+  <button class="btn ghost large back-btn" type="button" @click="$router.back()">
+    돌아가기
+  </button>
+</div>
       </form>
 
-      <div class="content-panel">
-        <h2>가입 상품</h2>
-        <div class="chart-panel compact"><canvas ref="chartCanvas"></canvas></div>
-        <ul class="plain-list">
-          <li v-for="product in auth.user.joined_products" :key="product.id">
-            {{ product.bank_name }} · {{ product.name }} <strong>{{ product.best_rate }}%</strong>
-          </li>
-          <li v-if="!auth.user.joined_products.length" class="muted">가입한 상품이 없습니다.</li>
-        </ul>
-      </div>
+      <form v-if="canChangePassword" class="account-card-local" @submit.prevent="changePassword">
+        <div class="account-card-head-local">
+          <span aria-hidden="true">⌑</span>
+          <div><h2>비밀번호 변경</h2><p>안전을 위해 현재 비밀번호를 확인합니다.</p></div>
+        </div>
+        <label>현재 비밀번호<input v-model="passwordForm.currentPassword" type="password" autocomplete="current-password"></label>
+        <label>새 비밀번호<input v-model="passwordForm.newPassword" type="password" autocomplete="new-password"></label>
+        <label>새 비밀번호 확인<input v-model="passwordForm.confirmPassword" type="password" autocomplete="new-password"></label>
+        <p v-if="passwordMessage" class="account-message-local success">{{ passwordMessage }}</p>
+        <button class="btn primary" type="submit" :disabled="changingPassword">{{ changingPassword ? "변경 중" : "비밀번호 변경" }}</button>
+      </form>
+
+      <article v-else class="account-card-local social-notice-local">
+        <div class="account-card-head-local">
+          <span aria-hidden="true">◌</span>
+          <div><h2>소셜 로그인 계정</h2><p>비밀번호는 연결된 소셜 계정에서 관리합니다.</p></div>
+        </div>
+        <p>소셜 로그인 계정은 FinPick에서 비밀번호를 변경할 수 없습니다.</p>
+      </article>
     </section>
   </main>
 </template>
+
+<style scoped>
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.form-actions .btn {
+  width: auto;
+}
+
+.account-page-local { min-height: calc(100vh - 72px); padding-top: 2.8rem; padding-bottom: 4rem; }
+.account-hero-local { margin-bottom: 1.5rem; }
+.account-hero-local > span { color: #129f9a; font-size: .82rem; font-weight: 900; letter-spacing: .04em; }
+.account-hero-local h1 { color: #102a4b; font-size: 2rem; letter-spacing: -.045em; margin: .38rem 0; }
+.account-hero-local p { color: var(--muted); margin: 0; }
+.account-layout-local { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.account-card-local { display: grid; gap: .85rem; border: 1px solid #dce6f2; border-radius: 16px; background: #fff; box-shadow: 0 8px 20px rgba(29,55,88,.05); padding: 1.35rem; }
+.account-card-head-local { display: flex; align-items: start; gap: .75rem; margin-bottom: .2rem; }
+.account-card-head-local > span { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: #eaf3ff; color: #1d6dea; font-weight: 900; }
+.account-card-head-local h2 { color: #183250; font-size: 1.15rem; margin: 0; }
+.account-card-head-local p, .social-notice-local > p { color: #6b7d93; font-size: .84rem; line-height: 1.5; margin: .28rem 0 0; }
+.account-card-local label { display: grid; gap: .45rem; color: #40566f; font-size: .85rem; font-weight: 850; }
+.account-card-local input { border: 1px solid #d8e4f1; border-radius: 9px; background: #fbfdff; color: #183250; font: inherit; padding: .7rem .75rem; }
+.account-card-local input:disabled { background: #f1f5f9; color: #718198; }
+.account-card-local .btn { justify-self: start; margin-top: .25rem; }
+.account-message-local { border-radius: 9px; font-size: .84rem; margin: 0; padding: .7rem .8rem; }
+.account-message-local.success { background: #edf9f4; color: #168260; }
+.account-message-local.error { background: #fff3f3; color: #ae3b3b; margin-bottom: 1rem; }
+.social-notice-local { min-height: 170px; }
+@media (max-width: 760px) { .account-page-local { padding-top: 1.75rem; } .account-layout-local { grid-template-columns: 1fr; } }
+</style>

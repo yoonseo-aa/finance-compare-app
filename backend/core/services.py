@@ -1,5 +1,6 @@
 ﻿import os
 from datetime import datetime, timezone
+import json
 from functools import lru_cache
 from time import time
 from urllib.parse import quote
@@ -238,6 +239,54 @@ def demo_youtube_results(query):
             "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
         }
     ]
+
+
+def naver_news_search(query):
+    client_id = os.getenv("NAVER_NEWS_CLIENT_ID")
+    client_secret = os.getenv("NAVER_NEWS_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        return []
+    response = requests.get(
+        "https://openapi.naver.com/v1/search/news.json",
+        params={"query": query, "display": 10, "sort": "sim"},
+        headers={"X-Naver-Client-Id": client_id, "X-Naver-Client-Secret": client_secret},
+        timeout=10,
+    )
+    response.raise_for_status()
+    return [
+        {
+            "title": item.get("title", ""),
+            "description": item.get("description", ""),
+            "source": item.get("bloggername", "네이버 뉴스"),
+            "published_at": item.get("pubDate", ""),
+            "url": item.get("originallink") or item.get("link", ""),
+            "reason": "검색어와의 관련성이 높아 추천",
+        }
+        for item in response.json().get("items", [])
+    ]
+
+
+def recommend_news_with_ai(query, articles):
+    fallback = [{**article, "reason": article.get("reason") or "검색어와의 관련성이 높아 추천"} for article in articles[:4]]
+    api_key = os.getenv("GMS_API_KEY")
+    if not api_key or not articles:
+        return fallback, False
+    try:
+        response = requests.post(
+            f"{os.getenv('GMS_OPENAI_BASE_URL', 'https://gms.ssafy.io/gmsapi/api.openai.com/v1').rstrip('/')}/chat/completions",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+            json={"model": os.getenv("GMS_OPENAI_MODEL", "gpt-5-mini"), "messages": [{"role": "developer", "content": "한국어 금융 뉴스 큐레이터입니다. 투자 조언 없이 관련도, 최신성, 정보성 기준으로 중복과 광고성 기사를 제외하세요."}, {"role": "user", "content": f"검색어: {query}\n후보: {json.dumps([{**item, 'index': i} for i, item in enumerate(articles)], ensure_ascii=False)}\n상위 4개를 JSON {{\"recommendations\":[{{\"index\":0,\"reason\":\"이유\"}}]}}으로 반환하세요."}], "response_format": {"type": "json_object"}},
+            timeout=15,
+        )
+        response.raise_for_status()
+        recommendations = json.loads(response.json()["choices"][0]["message"]["content"]).get("recommendations", [])
+        selected = []
+        for item in recommendations[:4]:
+            index = item.get("index")
+            if isinstance(index, int) and 0 <= index < len(articles): selected.append({**articles[index], "reason": item.get("reason") or "검색어와의 관련성이 높아 추천"})
+        return (selected or fallback), bool(selected)
+    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError):
+        return fallback, False
 
 
 

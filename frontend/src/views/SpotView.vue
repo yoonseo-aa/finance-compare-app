@@ -232,22 +232,22 @@ onMounted(loadPrices);
     <StatusBlock :loading="loading" :error="error" />
 
     <section v-if="latestRow" class="spot-summary-grid">
-      <article class="metric-card">
+      <!-- <article class="metric-card">
         <span>선택 상품</span>
         <strong>{{ assetLabel }}</strong>
-      </article>
-      <article class="metric-card">
+      </article> -->
+      <!-- <article class="metric-card">
         <span>최근 기준일</span>
         <strong>{{ latestRow.date }}</strong>
-      </article>
+      </article> -->
       <article class="metric-card">
         <span>최근 종가</span>
         <strong>{{ formatNumber(latestRow.price) }}</strong>
       </article>
-      <article class="metric-card">
+      <!-- <article class="metric-card">
         <span>데이터 수</span>
         <strong>{{ rows.length }}건</strong>
-      </article>
+      </article> -->
       <article class="metric-card">
         <span>조회 기간</span>
         <strong>{{ firstRow?.date }} ~ {{ latestRow.date }}</strong>
@@ -267,11 +267,11 @@ onMounted(loadPrices);
         <strong v-if="latestRow">{{ formatNumber(latestRow.price) }}</strong>
       </div>
       <canvas ref="chartCanvas"></canvas>
-      <p class="chart-footnote">
+      <!-- <p class="chart-footnote">
         급격한 단절 구간은 앞뒤 가격의 상대 변화율을 기준으로 그래프 표시선만 완만하게 보정했습니다.
         원본 값은 아래 표에 그대로 남아 있습니다.
         <span v-if="adjustedCount">보정 지점 {{ adjustedCount }}개</span>
-      </p>
+      </p> -->
     </section>
 
     <section class="content-panel">

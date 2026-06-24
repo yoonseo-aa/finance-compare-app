@@ -21,7 +21,7 @@ async function logout() {
       <RouterLink class="brand header-brand" to="/">FinPick</RouterLink>
       <nav class="nav-links header-menu">
         <RouterLink to="/products">예적금</RouterLink>
-        <RouterLink to="/recommend-profile">추천진단</RouterLink>
+        <RouterLink to="/recommendations">추천진단</RouterLink>
         <RouterLink to="/dashboard">대시보드</RouterLink>
         <RouterLink to="/spot">현물</RouterLink>
         <RouterLink to="/videos">관심 종목</RouterLink>

@@ -336,36 +336,46 @@ onMounted(async () => {
     <section class="container recommend-container-local">
       <div class="section-head recommend-head-local">
         <div>
-          <p class="eyebrow">FinPick recommendation</p>
+          <!-- <p class="eyebrow">FinPick recommendation</p> -->
           <h1>예적금 추천</h1>
           <p>금리만 높은 상품이 아니라, 내 조건에서 실제로 유리한 예적금 상품을 비교합니다.</p>
         </div>
         <div class="head-actions-local">
+          <RouterLink class="btn primary" to="/recommend-profile">나의 정보 입력하기</RouterLink>
           <RouterLink class="btn ghost" to="/products">전체 상품 보기</RouterLink>
-          <RouterLink class="btn plain" to="/dashboard">대시보드</RouterLink>
+          <RouterLink class="btn plain" to="/dashboard">나의 대시보드 보기</RouterLink>
         </div>
       </div>
 
       <StatusBlock :loading="loading" :error="error" />
 
       <section class="service-panel-local">
-        <div>
+        <div class="service-copy-local">
           <span>선택한 추천 서비스</span>
           <h2>{{ activeAudience.title }}</h2>
           <p>{{ activeAudience.description }}</p>
         </div>
-        <div class="service-stats-local">
+        <div class="service-summary-local">
           <article>
-            <span>추천 대상</span>
-            <strong>{{ summary.count }}개</strong>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">↗</span>
+              <span>평균 최고금리</span>
+            </div>
+            <strong>{{ summary.averageRate.toFixed(2) }}%</strong>
           </article>
           <article>
-            <span>최고 금리</span>
-            <strong>{{ summary.topRate.toFixed(2) }}%</strong>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">₩</span>
+              <span>1위 예상 수령액</span>
+            </div>
+            <strong>{{ formatMoney(summary.topMaturity) }}</strong>
           </article>
           <article>
-            <span>관심 상품</span>
-            <strong>{{ summary.favoriteCount }}개</strong>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">⌘</span>
+              <span>선택 조건</span>
+            </div>
+            <strong>{{ activeAudience.label }} · {{ productTypes.find(type => type.value === form.productType)?.label }}</strong>
           </article>
         </div>
       </section>
@@ -378,55 +388,57 @@ onMounted(async () => {
 
         <div class="workspace-local">
           <article class="content-panel filter-panel-local">
-            <div class="control-group-local">
-              <h3>추천 서비스</h3>
-              <div class="segment-grid-local audience">
-                <button
-                  v-for="audience in audiences"
-                  :key="audience.value"
-                  type="button"
-                  :class="{ active: form.audience === audience.value }"
-                  @click="selectAudience(audience.value)"
-                >
-                  <span>{{ audience.label }}</span>
-                  <small>{{ audience.count }}개</small>
-                </button>
+            <div class="condition-control-grid-local">
+              <div class="control-group-local">
+                <h3>추천 서비스</h3>
+                <div class="segment-grid-local audience">
+                  <button
+                    v-for="audience in audiences"
+                    :key="audience.value"
+                    type="button"
+                    :class="{ active: form.audience === audience.value }"
+                    @click="selectAudience(audience.value)"
+                  >
+                    <span>{{ audience.label }}</span>
+                    <small>{{ audience.count }}개</small>
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div class="control-group-local">
-              <h3>상품 유형</h3>
-              <div class="segment-grid-local three">
-                <button
-                  v-for="type in productTypes"
-                  :key="type.value"
-                  type="button"
-                  :class="{ active: form.productType === type.value }"
-                  @click="form.productType = type.value"
-                >
-                  <span>{{ type.label }}</span>
-                  <small>{{ type.description }}</small>
-                </button>
+              <div class="control-group-local">
+                <h3>상품 유형</h3>
+                <div class="segment-grid-local three">
+                  <button
+                    v-for="type in productTypes"
+                    :key="type.value"
+                    type="button"
+                    :class="{ active: form.productType === type.value }"
+                    @click="form.productType = type.value"
+                  >
+                    <span>{{ type.label }}</span>
+                    <small>{{ type.description }}</small>
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div class="control-group-local">
-              <h3>계산 방식</h3>
-              <div class="segment-grid-local two">
-                <button type="button" :class="{ active: form.direction === 'forward' }" @click="form.direction = 'forward'">
-                  <span>정방향 계산</span>
-                  <small>월 저축액으로 예상 수령액 계산</small>
-                </button>
-                <button type="button" :class="{ active: form.direction === 'target' }" @click="form.direction = 'target'">
-                  <span>목표 역산</span>
-                  <small>목표금액 기준으로 필요한 조건 확인</small>
-                </button>
+              <div class="control-group-local">
+                <h3>계산 방식</h3>
+                <div class="segment-grid-local two">
+                  <button type="button" :class="{ active: form.direction === 'forward' }" @click="form.direction = 'forward'">
+                    <span>정방향 계산</span>
+                    <small>월 저축액으로 예상 수령액 계산</small>
+                  </button>
+                  <button type="button" :class="{ active: form.direction === 'target' }" @click="form.direction = 'target'">
+                    <span>목표 역산</span>
+                    <small>목표금액 기준으로 필요한 조건 확인</small>
+                  </button>
+                </div>
               </div>
             </div>
 
             <div class="input-grid-local">
               <article class="step-box-local">
-                <span>{{ form.productType === "deposit" ? "예치 가능 금액" : "월 저축 가능 금액" }}</span>
+                <span class="field-label-local">{{ form.productType === "deposit" ? "예치 가능 금액" : "월 저축 가능 금액" }}</span>
                 <div>
                   <button
                     type="button"
@@ -441,7 +453,7 @@ onMounted(async () => {
               </article>
 
               <article class="step-box-local">
-                <span>{{ form.direction === "target" ? "목표 금액" : "희망 기간" }}</span>
+                <span class="field-label-local">{{ form.direction === "target" ? "목표 금액" : "희망 기간" }}</span>
                 <div>
                   <button
                     type="button"
@@ -455,24 +467,27 @@ onMounted(async () => {
                 </div>
               </article>
 
-              <label>
-                <span>저축 목적</span>
-                <select v-model="form.purpose">
-                  <option v-for="purpose in purposes" :key="purpose" :value="purpose">{{ purpose }}</option>
-                </select>
-              </label>
+              <!-- <label class="select-field-local"> -->
+                <!-- <span class="field-label-local">저축 목적</span> -->
+                <!-- <select v-model="form.purpose"> -->
+                  <!-- <option v-for="purpose in purposes" :key="purpose" :value="purpose">{{ purpose }}</option> -->
+                <!-- </select> -->
+              <!-- </label> -->
 
-              <label>
-                <span>추천 성향</span>
-                <select v-model="form.riskTolerance">
-                  <option value="stable">안정형</option>
-                  <option value="balanced">균형형</option>
-                  <option value="aggressive">고금리형</option>
-                </select>
-              </label>
+              <!-- <label class="select-field-local"> -->
+                <!-- <span class="field-label-local">추천 성향</span> -->
+                <!-- <select v-model="form.riskTolerance"> -->
+                  <!-- <option value="stable">안정형</option> -->
+                  <!-- <option value="balanced">균형형</option> -->
+                  <!-- <option value="aggressive">고금리형</option> -->
+                <!-- </select> -->
+              <!-- </label> -->
             </div>
 
-            <div class="purpose-row-local">
+            <div class="quick-choice-local">
+              <span>저축 목적
+              </span>
+              <div class="purpose-row-local">
               <button
                 v-for="purpose in purposes"
                 :key="purpose"
@@ -482,32 +497,14 @@ onMounted(async () => {
               >
                 {{ purpose }}
               </button>
+              </div>
             </div>
 
             <button class="btn primary full" type="button" :disabled="saving" @click="applyDiagnosis">
+              <span aria-hidden="true">✦</span>
               {{ saving ? "조건 반영 중" : "내 조건으로 추천 보기" }}
             </button>
           </article>
-
-          <aside class="content-panel summary-panel-local">
-            <h3>추천 요약</h3>
-            <div class="summary-list-local">
-              <article>
-                <span>평균 최고금리</span>
-                <strong>{{ summary.averageRate.toFixed(2) }}%</strong>
-              </article>
-              <article>
-                <span>1위 예상 수령액</span>
-                <strong>{{ formatMoney(summary.topMaturity) }}</strong>
-              </article>
-              <article>
-                <span>선택 조건</span>
-                <strong>{{ activeAudience.label }} · {{ productTypes.find(type => type.value === form.productType)?.label }}</strong>
-              </article>
-            </div>
-            <p v-if="usingPublicData" class="muted">로그인 전에는 공개 상품 데이터를 기준으로 추천 결과를 먼저 보여드립니다.</p>
-            <p v-else class="muted">내 프로필과 추천점수를 함께 반영해 정렬했습니다.</p>
-          </aside>
         </div>
       </section>
 
@@ -537,9 +534,16 @@ onMounted(async () => {
           >
             <span class="rank-local">{{ index + 1 }}</span>
             <div class="product-main-local">
-              <span>{{ item.product.bank_name }} · {{ productTypeLabel(item.product.product_type) }}</span>
+              <div class="product-heading-local">
+                <span class="product-bank-local">{{ item.product.bank_name }}</span>
+                <span class="product-type-local">{{ productTypeLabel(item.product.product_type) }}</span>
+              </div>
               <h3>{{ item.product.name }}</h3>
-              <p>{{ item.option.save_term }}개월 · 최고 {{ item.option.intr_rate2.toFixed(2) }}% · 추천점수 {{ recommendationScore(item) }}점</p>
+              <p class="product-meta-local">
+                <span>{{ item.option.save_term }}개월</span>
+                <span>최고 {{ item.option.intr_rate2.toFixed(2) }}%</span>
+                <span>추천점수 {{ recommendationScore(item) }}점</span>
+              </p>
               <div>
                 <em v-for="reason in item.reasons.slice(0, 2)" :key="reason">{{ reason }}</em>
               </div>
@@ -575,7 +579,7 @@ onMounted(async () => {
 }
 
 .recommend-head-local h1 {
-  font-size: clamp(2rem, 4.5vw, 3.4rem);
+  font-size: 2rem;
 }
 
 .head-actions-local,
@@ -589,9 +593,9 @@ onMounted(async () => {
 
 .service-panel-local {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, .85fr);
+  grid-template-columns: minmax(260px, .8fr) minmax(0, 1.2fr);
   gap: 1rem;
-  align-items: stretch;
+  align-items: center;
   margin-top: 1rem;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -600,8 +604,7 @@ onMounted(async () => {
   padding: 1.25rem;
 }
 
-.service-panel-local > div > span,
-.summary-panel-local h3,
+.service-copy-local > span,
 .control-group-local h3 {
   color: var(--teal);
   font-weight: 900;
@@ -614,32 +617,26 @@ onMounted(async () => {
 }
 
 .service-panel-local p,
-.summary-panel-local p {
+.service-copy-local p {
   margin: 0;
   color: var(--muted);
   line-height: 1.65;
 }
 
-.service-stats-local,
-.summary-list-local {
+.service-summary-local {
   display: grid;
   gap: .75rem;
-}
-
-.service-stats-local {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.service-stats-local article,
-.summary-list-local article {
+.service-summary-local article {
   border: 1px solid #d7e4f5;
   border-radius: 8px;
   background: rgba(255, 255, 255, .82);
   padding: .95rem;
 }
 
-.service-stats-local span,
-.summary-list-local span,
+.service-summary-local span,
 .step-box-local > span,
 .input-grid-local label > span,
 .result-money-local span {
@@ -649,32 +646,37 @@ onMounted(async () => {
   font-weight: 900;
 }
 
-.service-stats-local strong,
-.summary-list-local strong {
+.service-summary-local strong {
   display: block;
   margin-top: .35rem;
   color: var(--blue);
-  font-size: 1.35rem;
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  overflow-wrap: anywhere;
 }
 
 .workspace-local {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr);
-  gap: 1rem;
-  align-items: start;
+  display: block;
 }
 
 .filter-panel-local,
-.summary-panel-local,
 .control-group-local {
   display: grid;
   gap: 1rem;
 }
 
-.control-group-local h3,
-.summary-panel-local h3 {
+.control-group-local h3 {
   margin: 0;
   font-size: 1rem;
+}
+
+.condition-control-grid-local {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.condition-control-grid-local > :first-child {
+  grid-column: 1 / -1;
 }
 
 .segment-grid-local {
@@ -706,8 +708,8 @@ onMounted(async () => {
 }
 
 .segment-grid-local button {
-  min-height: 76px;
-  padding: .85rem;
+  min-height: 64px;
+  padding: .7rem .85rem;
   text-align: left;
 }
 
@@ -778,11 +780,6 @@ onMounted(async () => {
 .sort-tabs-local button {
   min-height: 38px;
   padding: .45rem .85rem;
-}
-
-.summary-panel-local {
-  position: sticky;
-  top: 92px;
 }
 
 .result-head-local {
@@ -887,13 +884,16 @@ onMounted(async () => {
   }
 
   .service-panel-local,
-  .workspace-local,
   .result-card-local {
     grid-template-columns: 1fr;
   }
 
-  .summary-panel-local {
-    position: static;
+  .condition-control-grid-local {
+    grid-template-columns: 1fr;
+  }
+
+  .condition-control-grid-local > :first-child {
+    grid-column: auto;
   }
 
   .result-money-local {
@@ -902,12 +902,541 @@ onMounted(async () => {
 }
 
 @media (max-width: 720px) {
-  .service-stats-local,
+  .service-summary-local,
   .segment-grid-local.audience,
   .segment-grid-local.two,
   .segment-grid-local.three,
   .input-grid-local {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Refined financial-service presentation */
+.recommend-page-local {
+  background:
+    radial-gradient(circle at 100% 0, rgba(37, 99, 235, .08), transparent 28rem),
+    linear-gradient(180deg, #f7faff 0, #f3f7fb 38rem, #f6f8fb 100%);
+}
+
+.recommend-container-local {
+  max-width: 1280px;
+  padding-top: 2.8rem;
+  padding-bottom: 4rem;
+}
+
+.recommend-head-local {
+  margin-bottom: 1.5rem;
+}
+
+.recommend-head-local h1,
+.result-head-local h2 {
+  color: #102a4b;
+  letter-spacing: -.045em;
+}
+
+.head-actions-local .btn {
+  min-height: 42px;
+  border-radius: 10px;
+  padding-inline: 1rem;
+}
+
+.service-panel-local {
+  position: relative;
+  grid-template-columns: minmax(300px, .82fr) minmax(0, 1.18fr);
+  gap: 2rem;
+  overflow: hidden;
+  border: 1px solid #dce7f5;
+  border-radius: 20px;
+  background: linear-gradient(115deg, #ffffff 8%, #f7fbff 58%, #eff7ff 100%);
+  box-shadow: 0 14px 34px rgba(19, 56, 97, .08);
+  padding: 1.7rem 2rem;
+}
+
+.service-panel-local::before {
+  position: absolute;
+  top: -4.5rem;
+  right: 31%;
+  width: 12rem;
+  height: 12rem;
+  border-radius: 999px;
+  background: rgba(20, 184, 166, .06);
+  content: "";
+  pointer-events: none;
+}
+
+.service-copy-local,
+.service-summary-local {
+  position: relative;
+  z-index: 1;
+}
+
+.service-copy-local > span {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  color: #0f9f9b;
+  font-size: .86rem;
+  letter-spacing: -.01em;
+}
+
+.service-copy-local > span::before,
+.control-group-local h3::before {
+  display: inline-block;
+  width: .5rem;
+  height: .5rem;
+  margin-right: .45rem;
+  border-radius: 50%;
+  background: #11b5ae;
+  content: "";
+}
+
+.service-panel-local h2 {
+  margin: .55rem 0 .6rem;
+  color: #102a4b;
+  font-size: clamp(1.7rem, 3vw, 2.45rem);
+  font-weight: 850;
+  line-height: 1.15;
+}
+
+.service-copy-local p {
+  max-width: 33rem;
+  color: #6b7d93;
+  font-size: .98rem;
+}
+
+.service-summary-local {
+  gap: .8rem;
+}
+
+.service-summary-local article {
+  min-height: 112px;
+  border: 1px solid #dbe7f5;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 8px 20px rgba(34, 68, 110, .055);
+  padding: 1rem 1.05rem;
+}
+
+.summary-label-local {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  color: #50647f;
+  font-size: .86rem;
+  font-weight: 850;
+}
+
+.summary-icon-local {
+  display: grid !important;
+  width: 2.2rem;
+  height: 2.2rem;
+  place-items: center;
+  border-radius: 10px;
+  background: #edf5ff;
+  color: #1671f9 !important;
+  font-size: 1.15rem !important;
+  font-weight: 900 !important;
+}
+
+.service-summary-local strong {
+  margin-top: .6rem;
+  color: #1469ec;
+  font-size: clamp(1.05rem, 1.8vw, 1.45rem);
+  font-weight: 900;
+  letter-spacing: -.035em;
+}
+
+.service-summary-local article:last-child strong {
+  font-size: clamp(.98rem, 1.45vw, 1.18rem);
+}
+
+.dashboard-section {
+  margin-top: 1.55rem;
+}
+
+.dashboard-section > .section-head {
+  margin: 0 0 1rem;
+}
+
+.dashboard-section > .section-head h2 {
+  color: #142c4c;
+  font-size: 1.32rem;
+}
+
+.filter-panel-local {
+  gap: 1.15rem;
+  border: 1px solid #dfe8f3;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 12px 30px rgba(29, 55, 88, .055);
+  padding: 1.45rem;
+}
+
+.condition-control-grid-local {
+  gap: 1.15rem;
+  padding: 1.15rem;
+  border: 1px solid #ebf0f6;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fdfefe, #fbfdff);
+}
+
+.control-group-local {
+  gap: .7rem;
+}
+
+.control-group-local h3 {
+  display: flex;
+  align-items: center;
+  color: #079f9b;
+  font-size: .94rem;
+  letter-spacing: -.02em;
+}
+
+.control-group-local h3::before {
+  margin-right: .48rem;
+}
+
+.segment-grid-local {
+  gap: .7rem;
+}
+
+.segment-grid-local button {
+  min-height: 80px;
+  border-color: #dce6f2;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 2px 5px rgba(42, 67, 98, .015);
+  padding: .9rem .95rem;
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.segment-grid-local button:hover {
+  border-color: #9fc1ff;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, .08);
+  transform: translateY(-1px);
+}
+
+.segment-grid-local button span {
+  color: #1c3557;
+  font-size: .96rem;
+}
+
+.segment-grid-local button small {
+  margin-top: .38rem;
+  color: #718198;
+  font-size: .77rem;
+}
+
+.segment-grid-local button.active {
+  border-color: #2878ff;
+  background: linear-gradient(135deg, #f8fbff, #eef5ff);
+  box-shadow: 0 7px 18px rgba(37, 99, 235, .12), inset 0 0 0 1px rgba(37, 99, 235, .1);
+}
+
+.segment-grid-local button.active span {
+  color: #1765e5;
+}
+
+.input-grid-local {
+  gap: 1rem;
+}
+
+.step-box-local,
+.input-grid-local label {
+  min-height: 104px;
+  gap: .75rem;
+  border-color: #e0e9f3;
+  border-radius: 14px;
+  background: #fbfdff;
+  padding: 1rem 1.15rem;
+}
+
+.field-label-local {
+  color: #079f9b !important;
+  font-size: .88rem !important;
+  font-weight: 900 !important;
+}
+
+.step-box-local div {
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  gap: .8rem;
+}
+
+.step-box-local button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid #e0eaf5;
+  border-radius: 10px;
+  background: #edf3f8;
+  color: #213955;
+  font-size: 1.12rem;
+}
+
+.step-box-local button:hover {
+  background: #e1edff;
+  color: #1469ec;
+}
+
+.step-box-local strong {
+  color: #142d50;
+  font-size: 1.34rem;
+  letter-spacing: -.04em;
+}
+
+.select-field-local select {
+  min-height: 42px;
+  border: 1px solid #d9e5f1;
+  border-radius: 10px;
+  background: #fff;
+  color: #183452;
+  font-weight: 800;
+  outline-color: #2c77fa;
+  padding: .55rem .75rem;
+}
+
+.quick-choice-local {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 46px;
+}
+
+.quick-choice-local > span {
+  flex: 0 0 auto;
+  color: #526780;
+  font-size: .86rem;
+  font-weight: 900;
+}
+
+.purpose-row-local {
+  gap: .55rem;
+}
+
+.purpose-row-local button,
+.sort-tabs-local button {
+  min-height: 36px;
+  border-color: #dbe5f1;
+  border-radius: 9px;
+  background: #fff;
+  color: #40546d;
+  font-size: .84rem;
+  transition: all .18s ease;
+}
+
+.purpose-row-local button:hover,
+.sort-tabs-local button:hover {
+  border-color: #a9c8ff;
+  color: #1969ec;
+}
+
+.purpose-row-local button.active,
+.sort-tabs-local button.active {
+  border-color: #91b9ff;
+  background: #eef5ff;
+  color: #1769ef;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .08);
+}
+
+.filter-panel-local .btn.full {
+  min-height: 50px;
+  border-radius: 11px;
+  box-shadow: 0 10px 20px rgba(25, 105, 236, .2);
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: -.015em;
+}
+
+.filter-panel-local .btn.full span {
+  margin-right: .35rem;
+  font-size: 1.1rem;
+}
+
+.result-head-local {
+  align-items: end;
+  margin-top: .5rem;
+  margin-bottom: 1rem;
+}
+
+.result-head-local h2 {
+  margin-bottom: .3rem;
+  font-size: 1.42rem;
+}
+
+.result-list-local {
+  gap: .9rem;
+}
+
+.result-card-local {
+  grid-template-columns: 62px minmax(0, 1fr) minmax(245px, auto);
+  gap: 1.25rem;
+  min-height: 138px;
+  border-color: #dce6f1;
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(29, 55, 88, .045);
+  padding: 1rem 1.15rem;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.result-card-local:hover {
+  border-color: #a9c8ff;
+  box-shadow: 0 15px 28px rgba(37, 99, 235, .09);
+  transform: translateY(-2px);
+}
+
+.result-card-local.featured {
+  border-color: #9ec1ff;
+  background: linear-gradient(105deg, #fff 0, #fbfdff 67%, #f4f9ff 100%);
+}
+
+.rank-local {
+  width: 56px;
+  height: 82px;
+  border-radius: 10px;
+  background: #edf2f7;
+  color: #50647a;
+  font-size: 1.5rem;
+}
+
+.featured .rank-local {
+  background: linear-gradient(160deg, #1f78fa, #155de8);
+  box-shadow: 0 8px 16px rgba(30, 105, 234, .2);
+}
+
+.product-main-local {
+  min-width: 0;
+}
+
+.product-main-local div.product-heading-local {
+  align-items: center;
+  gap: .5rem;
+  margin: 0;
+}
+
+.product-bank-local {
+  color: #5d7088;
+  font-size: .82rem;
+  font-weight: 850;
+}
+
+.product-type-local {
+  padding: .22rem .52rem;
+  border-radius: 999px;
+  background: #eff5ff;
+  color: #2873e9;
+  font-size: .73rem;
+  font-weight: 900;
+}
+
+.product-main-local h3 {
+  margin: .36rem 0 .55rem;
+  color: #152f51;
+  font-size: 1.2rem;
+  letter-spacing: -.025em;
+}
+
+.product-main-local p.product-meta-local {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  color: #5d7088;
+  font-size: .84rem;
+}
+
+.product-meta-local span + span {
+  margin-left: .65rem;
+  padding-left: .65rem;
+  border-left: 1px solid #dce5ef;
+}
+
+.product-main-local div:not(.product-heading-local) {
+  gap: .42rem;
+  margin-top: .7rem;
+}
+
+.product-main-local em {
+  border: 1px solid #edf1f6;
+  background: #f5f8fc;
+  color: #63758c;
+  font-size: .73rem;
+}
+
+.result-money-local {
+  min-width: 230px;
+  justify-items: start;
+  gap: .3rem;
+  border-left: 1px solid #e2eaf3;
+  padding-left: 1.35rem;
+}
+
+.result-money-local span {
+  color: #566b84;
+  font-size: .8rem;
+}
+
+.result-money-local strong {
+  color: #176be9;
+  font-size: clamp(1.35rem, 2vw, 1.7rem);
+  letter-spacing: -.045em;
+}
+
+.result-money-local small {
+  color: #08a39f;
+  font-size: .82rem;
+}
+
+@media (max-width: 980px) {
+  .service-panel-local {
+    grid-template-columns: 1fr;
+    gap: 1.2rem;
+  }
+
+  .result-card-local {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .result-money-local {
+    grid-column: 2;
+    border-top: 1px solid #e2eaf3;
+    border-left: 0;
+    padding-top: .85rem;
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .recommend-container-local {
+    padding-top: 1.75rem;
+  }
+
+  .service-panel-local,
+  .filter-panel-local {
+    border-radius: 16px;
+    padding: 1.15rem;
+  }
+
+  .service-summary-local,
+  .condition-control-grid-local,
+  .input-grid-local {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-choice-local {
+    display: grid;
+    gap: .6rem;
+  }
+
+  .result-card-local {
+    grid-template-columns: 1fr;
+    gap: .9rem;
+  }
+
+  .rank-local {
+    width: 48px;
+    height: 48px;
+  }
+
+  .result-money-local {
+    grid-column: auto;
   }
 }
 </style>
