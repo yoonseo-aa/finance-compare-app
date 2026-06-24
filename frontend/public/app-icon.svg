@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">FinPick app icon</title>
+  <desc id="desc">A rounded blue and teal finance dashboard icon with a rising chart and selection spark.</desc>
+  <defs>
+    <linearGradient id="bg" x1="88" y1="56" x2="424" y2="456" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="0.55" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#172033"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="168" y1="132" x2="344" y2="352" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8d47a"/>
+      <stop offset="1" stop-color="#b45309"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="244" r="116" fill="url(#coin)" opacity="0.96"/>
+  <circle cx="256" cy="244" r="82" fill="none" stroke="#fff7d6" stroke-width="20" opacity="0.72"/>
+  <path d="M134 348h244" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round" opacity="0.92"/>
+  <path d="M158 314l70-64 58 42 92-112" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M364 178h-76" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round"/>
+  <path d="M364 178v76" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round"/>
+  <circle cx="386" cy="126" r="18" fill="#ffffff"/>
+  <circle cx="418" cy="158" r="10" fill="#ffffff" opacity="0.85"/>
+  <circle cx="104" cy="394" r="14" fill="#ffffff" opacity="0.82"/>
+</svg>

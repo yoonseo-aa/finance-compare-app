@@ -1,23 +1,51 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+﻿import { createRouter, createWebHistory } from "vue-router";
+
+import { getToken } from "../api/client";
+import BankSearchView from "../views/BankSearchView.vue";
+import CommunityView from "../views/CommunityView.vue";
+import DashboardView from "../views/DashboardView.vue";
+import HomeView from "../views/HomeView.vue";
+import LoginView from "../views/LoginView.vue";
+import MyPageView from "../views/MyPageView.vue";
+import ProductDetailView from "../views/ProductDetailView.vue";
+import ProductsView from "../views/ProductsView.vue";
+import ProfileView from "../views/ProfileView.vue";
+import RecommendationProfileView from "../views/RecommendationProfileView.vue";
+import RecommendationsView from "../views/RecommendationsView.vue";
+import SignupView from "../views/SignupView.vue";
+import SocialCallbackView from "../views/SocialCallbackView.vue";
+import SpotView from "../views/SpotView.vue";
+import VideoDetailView from "../views/VideoDetailView.vue";
+import VideosView from "../views/VideosView.vue";
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(),
   routes: [
-    {
-      path: '/',
-      name: 'home',
-      component: HomeView,
-    },
-    {
-      path: '/about',
-      name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
-      component: () => import('../views/AboutView.vue'),
-    },
+    { path: "/", name: "home", component: HomeView },
+    { path: "/products", name: "products", component: ProductsView },
+    { path: "/products/:id", name: "product-detail", component: ProductDetailView },
+    { path: "/dashboard", name: "dashboard", component: DashboardView, meta: { requiresAuth: true } },
+    { path: "/spot", name: "spot", component: SpotView },
+    { path: "/videos", name: "videos", component: VideosView },
+    { path: "/videos/:id", name: "video-detail", component: VideoDetailView },
+    { path: "/banks", name: "banks", component: BankSearchView },
+    { path: "/community", name: "community", component: CommunityView },
+    { path: "/login", name: "login", component: LoginView },
+    { path: "/signup", name: "signup", component: SignupView },
+    { path: "/social/callback/:provider", name: "social-callback", component: SocialCallbackView },
+    { path: "/mypage", name: "mypage", component: MyPageView, meta: { requiresAuth: true } },
+    { path: "/profile", name: "profile", component: ProfileView, meta: { requiresAuth: true } },
+    { path: "/recommend-profile", name: "recommend-profile", component: RecommendationProfileView, meta: { requiresAuth: true } },
+    { path: "/recommendations", name: "recommendations", component: RecommendationsView }
   ],
-})
+  scrollBehavior: () => ({ top: 0 })
+});
 
-export default router
+router.beforeEach(to => {
+  if (to.meta.requiresAuth && !getToken()) {
+    return { name: "login", query: { next: to.fullPath } };
+  }
+  return true;
+});
+
+export default router;

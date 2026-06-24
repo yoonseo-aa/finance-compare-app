@@ -1,0 +1,17 @@
+{
+  "name": "FinPick",
+  "short_name": "FinPick",
+  "description": "Personalized financial product dashboard and recommendation app.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f9ff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
