@@ -3,6 +3,8 @@
 import { getToken } from "../api/client";
 import BankSearchView from "../views/BankSearchView.vue";
 import CommunityView from "../views/CommunityView.vue";
+import CommunityWriteView from "../views/CommunityWriteView.vue";
+import CommunityDetailView from "../views/CommunityDetailView.vue";
 import DashboardView from "../views/DashboardView.vue";
 import FavoritesView from "../views/FavoritesView.vue";
 import HomeView from "../views/HomeView.vue";
@@ -31,14 +33,16 @@ const router = createRouter({
     { path: "/videos", name: "videos", component: VideosView },
     { path: "/videos/:id", name: "video-detail", component: VideoDetailView },
     { path: "/banks", name: "banks", component: BankSearchView },
-    { path: "/community", name: "community", component: CommunityView },
+    { path: "/community", name: "Community", component: CommunityView },
+    { path: "/community/write", name: "CommunityWrite", component: CommunityWriteView },
+    { path: "/community/:id", name: "CommunityDetail", component: CommunityDetailView },
     { path: "/login", name: "login", component: LoginView },
     { path: "/signup", name: "signup", component: SignupView },
     { path: "/social/callback/:provider", name: "social-callback", component: SocialCallbackView },
     { path: "/mypage", name: "mypage", component: MyPageView, meta: { requiresAuth: true } },
     { path: "/profile", name: "profile", component: ProfileView, meta: { requiresAuth: true } },
     { path: "/recommend-profile", name: "recommend-profile", component: RecommendationProfileView, meta: { requiresAuth: true } },
-    { path: "/recommendations", name: "recommendations", component: RecommendationsView },
+    { path: "/recommendations", name: "recommendations", component: RecommendationsView }
   ],
   scrollBehavior: () => ({ top: 0 })
 });
