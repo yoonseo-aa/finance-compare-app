@@ -24,6 +24,7 @@ urlpatterns = [
     path("recommendations/", views.recommendations, name="recommendations"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("sync-finlife/", views.sync_finlife, name="sync_finlife"),
+    path("loans/", views.loans, name="loans"),
     path("stats/", views.stats, name="stats"),
     path("health/", views.health, name="health"),
 ]

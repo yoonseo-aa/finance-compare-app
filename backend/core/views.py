@@ -25,7 +25,7 @@ from .serializers import (
     SignupSerializer,
     UserSerializer,
 )
-from .services import FinlifeAPIError, fetch_finlife_products, load_spot_price_data, naver_news_search, recommend_news_with_ai, seed_demo_products, youtube_search
+from .services import FinlifeAPIError, fetch_finlife_loans, fetch_finlife_products, load_spot_price_data, naver_news_search, recommend_news_with_ai, seed_demo_products, youtube_search
 from .social_auth import authenticate_social, build_authorization_url
 
 
@@ -297,6 +297,41 @@ def sync_finlife(request):
     except FinlifeAPIError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     return Response({"count": deposit_count + saving_count})
+
+
+@api_view(["GET"])
+def loans(request):
+    loan_type = request.query_params.get("type", "credit")
+    try:
+        loan_types = ("mortgage", "rent", "credit") if loan_type == "all" else (loan_type,)
+        results = [item for current_type in loan_types for item in fetch_finlife_loans(current_type)]
+        query = request.query_params.get("q", "").strip().lower()
+        bank = request.query_params.get("bank", "").strip()
+        code = request.query_params.get("code", "").strip()
+        sort = request.query_params.get("sort", "rate")
+
+        if query:
+            results = [
+                item for item in results
+                if query in item["name"].lower() or query in item["bank_name"].lower()
+            ]
+        if bank:
+            results = [item for item in results if item["bank_name"] == bank]
+        if code:
+            results = [item for item in results if item["product_code"] == code]
+
+        if sort == "bank":
+            results.sort(key=lambda item: (item["bank_name"], item["name"]))
+        elif sort == "name":
+            results.sort(key=lambda item: item["name"])
+        else:
+            results.sort(key=lambda item: item["rate_min"] if item["rate_min"] > 0 else float("inf"))
+
+        return Response({"type": loan_type, "results": results})
+    except FinlifeAPIError as exc:
+        return Response({"type": loan_type, "results": [], "error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    except requests.RequestException:
+        return Response({"type": loan_type, "results": [], "error": "대출 상품 정보를 불러오지 못했습니다."}, status=status.HTTP_502_BAD_GATEWAY)
 
 
 @api_view(["GET"])

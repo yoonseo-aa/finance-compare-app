@@ -1,142 +1,96 @@
-﻿<script setup>
-const serviceHighlights = [
-  {
-    label: "STEP 1",
-    title: "예적금 추천 진단",
-    text: "나이대, 가족 상황, 소득, 재산, 저축 목적을 입력하고 추천 점수를 계산합니다.",
-    to: "/recommend-profile",
-    icon: "chart"
-  },
-  {
-    label: "STEP 2",
-    title: "맞춤 추천 결과",
-    text: "상품별 추천점수와 나에게 맞는 이유를 함께 확인합니다.",
-    to: "/recommendations",
-    icon: "bank"
-  },
-  {
-    label: "MY",
-    title: "마이페이지",
-    text: "추천 프로필, 가입 상품, 개인화 대시보드를 한곳에서 관리합니다.",
-    to: "/mypage",
-    icon: "user"
-  }
+<script setup>
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
+
+import { apiFetch } from "../api/client";
+import { useCommunityStore } from "../stores/community";
+
+const router = useRouter();
+const community = useCommunityStore();
+const query = ref("");
+const searchedQuery = ref("");
+const loading = ref(false);
+const products = ref([]);
+const loans = ref([]);
+const news = ref([]);
+const videos = ref([]);
+const searchErrors = ref({ products: "", news: "", videos: "" });
+
+const suggestions = ["예금", "적금", "주택담보대출", "전세자금대출", "삼성전자", "금리 전망", "ETF"];
+const categories = [
+  { icon: "⌂", label: "금융회사 개요", to: "/banks" },
+  { icon: "▣", label: "정기예금", to: "/products?group=deposit&type=deposit" },
+  { icon: "▤", label: "적금", to: "/products?group=deposit&type=saving" },
+  { icon: "₩", label: "연금저축", to: "/products?group=deposit&type=pension" },
+  { icon: "⌂", label: "주택담보대출", to: "/products?group=loan&type=mortgage" },
+  { icon: "⌂", label: "전세자금대출", to: "/products?group=loan&type=rent" },
+  { icon: "◉", label: "개인신용대출", to: "/products?group=loan&type=credit" }
+];
+const features = [
+  { icon: "⌕", title: "추천 비교", text: "내게 맞는 금융상품을 추천받고 한눈에 비교해보세요.", to: "/recommend-profile" },
+  { icon: "♥", title: "관심 상품", text: "관심 목록에 담은 예적금 상품을 다시 확인해보세요.", to: "/favorites" },
+  { icon: "⌂", title: "금융사 검색", text: "원하는 금융회사의 상품과 정보를 빠르게 찾아보세요.", to: "/banks" }
 ];
 
-const dashboardPreview = [
-  { label: "추천점수", value: "116" },
-  { label: "추천 이유", value: "3+" },
-  { label: "API 상품", value: "96" }
-];
+const communityResults = computed(() => {
+  const keyword = searchedQuery.value.trim().toLowerCase();
+  if (!keyword) return [];
+  return community.posts.filter(post => [post.title, post.content, post.author, ...(post.tags || [])]
+    .join(" ").toLowerCase().includes(keyword)).slice(0, 3);
+});
 
-const stockTop5 = [
-  { rank: 1, name: "삼성전자", symbol: "005930", change: "+1.8%", theme: "반도체" },
-  { rank: 2, name: "SK하이닉스", symbol: "000660", change: "+2.4%", theme: "AI 메모리" },
-  { rank: 3, name: "NAVER", symbol: "035420", change: "+0.9%", theme: "플랫폼" },
-  { rank: 4, name: "현대차", symbol: "005380", change: "+1.2%", theme: "모빌리티" },
-  { rank: 5, name: "LG에너지솔루션", symbol: "373220", change: "+0.7%", theme: "2차전지" }
-];
+function cleanText(value = "") {
+  const element = document.createElement("textarea");
+  element.innerHTML = value;
+  return element.value.replace(/<[^>]*>/g, "");
+}
+
+async function search(value = query.value) {
+  const keyword = value.trim();
+  if (!keyword) return;
+  router.push({ name: "search", query: { q: keyword } });
+}
+
+function openLoanResults() {
+  router.push({ path: "/products", query: { group: "loan", type: "credit", q: searchedQuery.value } });
+}
 </script>
 
 <template>
-  <main>
-    <section class="hero-band bank-hero">
+  <main class="home-page">
+    <section class="container home-hero">
       <div class="hero-copy">
-        <p class="eyebrow">금융 상품 비교 애플리케이션</p>
-        <h1>FinPick</h1>
-        <p>회원가입은 간단하게, 예적금 추천은 별도 진단으로 정확하게. 내 현재 상황을 바탕으로 추천점수와 추천 이유를 보여주는 금융 추천 서비스입니다.</p>
-        <div class="hero-actions">
-          <RouterLink class="btn primary large" to="/recommend-profile">나에게 맞는 예적금 찾기</RouterLink>
-          <RouterLink class="btn ghost large" to="/products">상품 비교</RouterLink>
-        </div>
+        <p class="hero-badge">◆ 오픈 API로 더 투명하고 정확한 비교</p>
+        <h1>한눈에 비교하는<br>금융상품</h1>
+        <p>예금 · 적금 · 연금저축 · 주택담보대출 · 전세자금대출 · 개인신용대출까지 쉽고 빠르게 비교해보세요.</p>
+        <div class="hero-actions"><RouterLink class="btn primary home-cta" to="/products">상품 비교 시작</RouterLink><RouterLink class="btn ghost home-cta" to="/banks">오픈 API 보기</RouterLink></div>
       </div>
-
-      <div class="hero-visual service-highlight-panel">
-        <RouterLink
-          v-for="item in serviceHighlights"
-          :key="item.title"
-          class="market-tile service-tile"
-          :to="item.to"
-        >
-          <span class="service-icon" :class="`icon-${item.icon}`" aria-hidden="true">
-            <svg v-if="item.icon === 'bank'" viewBox="0 0 24 24"><path d="M3 9.5 12 4l9 5.5"/><path d="M5 10h14v9H5z"/><path d="M8 13v4M12 13v4M16 13v4"/></svg>
-            <svg v-else-if="item.icon === 'chart'" viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 3-4 3 2 4-7"/></svg>
-            <svg v-else viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-          </span>
-          <span>{{ item.label }}</span>
-          <strong>{{ item.title }}</strong>
-          <p>{{ item.text }}</p>
-        </RouterLink>
+      <div class="hero-art" aria-hidden="true">
+        <div class="art-chart"><span></span><span></span><span></span><i></i></div><div class="art-bank">⌂</div><div class="art-card">▰</div><div class="art-coins">●<br>●<br>●</div><div class="art-shield">✓</div>
       </div>
     </section>
 
-    <section class="container compact-dashboard-section">
-      <div class="section-head split-section-head">
-        <div>
-          <h2>개인화 추천 흐름</h2>
-          <p>입력한 상황을 점수화해서 왜 이 상품이 맞는지까지 보여줍니다.</p>
-        </div>
-        <RouterLink class="text-link" to="/recommendations">추천 결과 보기</RouterLink>
-      </div>
-      <div class="dashboard-preview-layout">
-        <article class="dashboard-graph-card">
-          <div class="graph-head">
-            <span>추천 점수 예시</span>
-            <strong>116점</strong>
-          </div>
-          <svg class="home-line-chart" viewBox="0 0 420 180" role="img" aria-label="추천 점수 그래프">
-            <defs>
-              <linearGradient id="homeChartFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#2f80ed" stop-opacity="0.28"/>
-                <stop offset="1" stop-color="#2f80ed" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <path class="chart-area" d="M24 146 C74 130, 96 118, 132 124 C172 130, 192 88, 232 94 C276 100, 292 52, 332 58 C362 62, 386 44, 404 32 L404 160 L24 160 Z"/>
-            <path class="chart-line" d="M24 146 C74 130, 96 118, 132 124 C172 130, 192 88, 232 94 C276 100, 292 52, 332 58 C362 62, 386 44, 404 32"/>
-            <circle cx="404" cy="32" r="7"/>
-          </svg>
-        </article>
-        <div class="dashboard-preview-grid bank-summary-grid">
-          <article v-for="item in dashboardPreview" :key="item.label" class="dashboard-preview-card">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-          </article>
-        </div>
+    <section class="container home-search-wrap">
+      <form class="home-search" @submit.prevent="search()"><span aria-hidden="true">⌕</span><input v-model="query" placeholder="상품명, 은행명, 종목, 금융 키워드를 검색해보세요"><button class="btn primary" :disabled="loading">{{ loading ? "검색 중" : "검색" }}</button></form>
+      <div class="home-chips"><button v-for="word in suggestions" :key="word" type="button" @click="search(word)">{{ word }}</button></div>
+    </section>
+
+    <section v-if="searchedQuery" class="container search-results">
+      <div class="search-result-title"><p>통합 검색 결과</p><h2>“{{ searchedQuery }}”에 대한 결과</h2></div>
+      <div class="result-grid">
+        <section class="result-section"><div class="result-head"><h3>관련 금융 상품</h3><RouterLink :to="`/products?q=${encodeURIComponent(searchedQuery)}`">더보기 →</RouterLink></div><p v-if="searchErrors.products" class="result-message">{{ searchErrors.products }}</p><div v-else-if="products.length || loans.length" class="result-cards"><RouterLink v-for="product in products" :key="product.id" class="mini-card" :to="`/products/${product.id}`"><span>{{ product.product_type_label || product.product_type }}</span><strong>{{ product.name }}</strong><small>{{ product.bank_name }} · 최고 {{ Number(product.max_rate || 0).toFixed(2) }}%</small></RouterLink><button v-for="loan in loans" :key="loan.product_code" class="mini-card loan-mini" type="button" @click="openLoanResults"><span>{{ loan.loan_type_label }}</span><strong>{{ loan.name }}</strong><small>{{ loan.bank_name }} · {{ loan.rate_min ? `최저 ${loan.rate_min.toFixed(2)}%` : "금리 확인" }}</small></button></div><p v-else class="result-message">관련 결과가 없습니다.</p></section>
+        <section class="result-section"><div class="result-head"><h3>관련 뉴스 기사</h3><RouterLink :to="`/videos?q=${encodeURIComponent(searchedQuery)}`">더보기 →</RouterLink></div><p v-if="searchErrors.news" class="result-message">{{ searchErrors.news }}</p><div v-else-if="news.length" class="result-cards"><a v-for="article in news" :key="article.url" class="mini-card" :href="article.url" target="_blank" rel="noopener noreferrer"><span>{{ cleanText(article.source) }}</span><strong>{{ cleanText(article.title) }}</strong><small>{{ article.published_at }}</small></a></div><p v-else class="result-message">관련 결과가 없습니다.</p></section>
+        <section class="result-section"><div class="result-head"><h3>관련 유튜브 영상</h3><RouterLink :to="`/videos?q=${encodeURIComponent(searchedQuery)}`">더보기 →</RouterLink></div><p v-if="searchErrors.videos" class="result-message">{{ searchErrors.videos }}</p><div v-else-if="videos.length" class="result-cards"><a v-for="video in videos" :key="video.video_id" class="mini-card video-mini" :href="`https://www.youtube.com/watch?v=${video.video_id}`" target="_blank" rel="noopener noreferrer"><img :src="video.thumbnail" alt=""><strong>{{ cleanText(video.title) }}</strong><small>{{ cleanText(video.channel) }}</small></a></div><p v-else class="result-message">관련 결과가 없습니다.</p></section>
+        <section class="result-section"><div class="result-head"><h3>커뮤니티 글</h3><RouterLink :to="`/community?q=${encodeURIComponent(searchedQuery)}`">더보기 →</RouterLink></div><div v-if="communityResults.length" class="result-cards"><RouterLink v-for="post in communityResults" :key="post.id" class="mini-card" :to="`/community/${post.id}`"><span>{{ post.category }}</span><strong>{{ post.title }}</strong><small>{{ post.author }} · 댓글 {{ post.comments }}</small></RouterLink></div><p v-else class="result-message">관련 결과가 없습니다.</p></section>
       </div>
     </section>
 
-    <section class="container">
-      <div class="section-head">
-        <h2>서비스</h2>
-        <p>추천, 비교, 대시보드, 현물 시세까지 한 흐름으로 확인합니다.</p>
-      </div>
-      <div class="feature-grid service-grid-bank">
-        <RouterLink class="feature-card" to="/recommend-profile"><strong>예적금 추천 진단</strong><span>현재상황 입력과 추천점수 계산</span></RouterLink>
-        <RouterLink class="feature-card" to="/products"><strong>예적금 비교</strong><span>은행 필터, 검색, 상세 금리</span></RouterLink>
-        <RouterLink class="feature-card" to="/dashboard"><strong>개인화 대시보드</strong><span>목표 달성률과 추천 요약</span></RouterLink>
-        <RouterLink class="feature-card" to="/mypage"><strong>마이페이지</strong><span>추천 프로필과 가입상품 관리</span></RouterLink>
-        <RouterLink class="feature-card" to="/spot"><strong>현물 시각화</strong><span>금/은 API 기반 시세 차트</span></RouterLink>
-        <RouterLink class="feature-card" to="/banks"><strong>은행 찾기</strong><span>Kakao 지도 기반 탐색</span></RouterLink>
-      </div>
-    </section>
-
-    <section class="surface-band bank-surface">
-      <div class="container">
-        <div class="section-head">
-          <h2>주식 종목 Top 5</h2>
-          <p>관심 종목 흐름을 빠르게 확인합니다.</p>
-        </div>
-        <div class="stock-grid">
-          <article v-for="stock in stockTop5" :key="stock.symbol" class="stock-card">
-            <span class="stock-rank">{{ stock.rank }}</span>
-            <div>
-              <strong>{{ stock.name }}</strong>
-              <p>{{ stock.symbol }} · {{ stock.theme }}</p>
-            </div>
-            <em>{{ stock.change }}</em>
-          </article>
-        </div>
-      </div>
-    </section>
+    <section class="container home-section"><div class="section-title"><h2>오픈 API 기반 상품 카테고리</h2><RouterLink to="/products">전체 카테고리 보기 ›</RouterLink></div><div class="category-grid"><RouterLink v-for="category in categories" :key="category.label" :to="category.to" class="category-card"><span>{{ category.icon }}</span><strong>{{ category.label }}</strong></RouterLink></div></section>
+    <section class="container home-section"><div class="feature-grid"><RouterLink v-for="feature in features" :key="feature.title" :to="feature.to" class="home-feature"><span>{{ feature.icon }}</span><div><h2>{{ feature.title }}</h2><p>{{ feature.text }}</p></div><b>›</b></RouterLink></div></section>
+    <section class="container trust-bar"><span>◇ 오픈 API 기반 데이터 제공</span><span>▣ 보안 인증으로 안전한 서비스</span><span>↻ 실시간 업데이트</span><span>ⓘ 금융상품 비교 플랫폼</span></section>
   </main>
 </template>
+
+<style scoped>
+.home-page { min-height:calc(100vh - 72px); padding:2rem 0 3.5rem; }.home-hero { align-items:center; background:radial-gradient(circle at 78% 38%,#dbeaff 0,rgba(219,234,255,.35) 18%,transparent 42%),linear-gradient(135deg,#eef6ff,#fafcff); border-radius:24px; display:grid; grid-template-columns:1fr .85fr; min-height:386px; overflow:hidden; padding:3.25rem 4.2rem; }.hero-copy { max-width:600px; z-index:1; }.hero-badge { background:#fff; border-radius:999px; color:#2c5d9e; display:inline-block; font-size:.82rem; font-weight:850; margin:0 0 1.15rem; padding:.55rem .8rem; }.hero-copy h1 { color:#102a4b; font-size:clamp(2.5rem,5vw,4rem); letter-spacing:-.065em; line-height:1.13; margin:0; }.hero-copy>p:not(.hero-badge) { color:#526b89; font-size:1.05rem; line-height:1.85; margin:1rem 0 1.65rem; }.hero-actions { display:flex; flex-wrap:wrap; gap:.65rem; }.home-cta { min-height:54px; padding-inline:1.4rem; }.hero-art { height:300px; position:relative; }.art-chart,.art-card,.art-bank,.art-shield { box-shadow:0 18px 30px rgba(57,104,178,.15); }.art-chart { background:linear-gradient(145deg,#fff,#e8f1ff); border:1px solid #d9e6f7; border-radius:18px; height:132px; left:25px; padding:34px 18px 15px; position:absolute; top:2px; transform:rotate(-7deg); width:205px; }.art-chart span { background:#5f9cff; border-radius:3px 3px 0 0; bottom:18px; display:inline-block; margin-right:13px; position:relative; width:14px; }.art-chart span:nth-child(1){height:30px}.art-chart span:nth-child(2){height:58px}.art-chart span:nth-child(3){height:42px}.art-chart i { border-top:3px solid #236ee8; display:block; position:absolute; right:16px; top:36px; transform:rotate(-23deg); width:115px; }.art-bank { background:linear-gradient(145deg,#4385f7,#1256cb); border-radius:19px; color:#fff; font-size:6.8rem; height:155px; line-height:145px; position:absolute; right:75px; text-align:center; top:66px; transform:skewY(-3deg); width:185px; }.art-card { background:linear-gradient(145deg,#73a9ff,#2465db); border-radius:15px; color:#dbe9ff; font-size:4rem; height:106px; line-height:95px; position:absolute; right:0; text-align:center; top:95px; transform:rotate(6deg); width:170px; }.art-coins { color:#e5a42d; font-size:2rem; font-weight:900; letter-spacing:-10px; line-height:.4; position:absolute; right:82px; text-shadow:3px 3px #bd7917; top:190px; transform:rotate(7deg); }.art-shield { background:#edf6ff; border-radius:50%; bottom:12px; color:#236ee8; font-size:2.3rem; height:74px; left:0; line-height:74px; position:absolute; text-align:center; width:74px; }.home-search-wrap { margin-top:1rem; }.home-search { align-items:center; background:#fff; border:1px solid #dbe6f3; border-radius:17px; box-shadow:0 10px 24px rgba(29,55,88,.09); display:grid; gap:.8rem; grid-template-columns:auto 1fr auto; padding:.65rem .7rem .65rem 1.2rem; }.home-search>span { color:#1f70e8; font-size:1.5rem; }.home-search input { border:0; color:#183250; font:inherit; font-weight:650; outline:0; padding:.75rem 0; }.home-search .btn { border-radius:11px; min-width:94px; }.home-chips { display:flex; flex-wrap:wrap; gap:.45rem; padding:.8rem .4rem 0; }.home-chips button { background:#fff; border:1px solid #dbe6f2; border-radius:99px; color:#526b89; cursor:pointer; font-weight:750; padding:.4rem .72rem; }.home-chips button:hover { border-color:#8fb7ff; color:#176bea; }.home-section,.search-results { margin-top:2.65rem; }.section-title,.result-head { align-items:center; display:flex; justify-content:space-between; gap:1rem; }.section-title h2,.search-result-title h2 { color:#183250; font-size:1.35rem; letter-spacing:-.035em; margin:0; }.section-title a,.result-head a { color:#246fe5; font-size:.85rem; font-weight:850; text-decoration:none; }.category-grid { display:grid; gap:.75rem; grid-template-columns:repeat(7,minmax(0,1fr)); margin-top:1rem; }.category-card { align-items:center; background:#fff; border:1px solid #dce6f2; border-radius:16px; color:#203854; display:flex; flex-direction:column; gap:.8rem; min-height:145px; justify-content:center; text-align:center; text-decoration:none; transition:.18s ease; }.category-card:hover,.home-feature:hover,.mini-card:hover { border-color:#9dc0ff; box-shadow:0 12px 25px rgba(38,100,220,.09); transform:translateY(-2px); }.category-card span { align-items:center; background:#eef5ff; border-radius:50%; color:#1e6ce4; display:flex; font-size:1.75rem; height:58px; justify-content:center; width:58px; }.category-card strong { font-size:.9rem; }.feature-grid { display:grid; gap:1rem; grid-template-columns:repeat(3,minmax(0,1fr)); }.home-feature { align-items:center; background:linear-gradient(135deg,#eef5ff,#fafcff); border:1px solid #dce6f2; border-radius:16px; color:inherit; display:flex; gap:1rem; min-height:114px; padding:1rem 1.2rem; text-decoration:none; transition:.18s ease; }.home-feature:nth-child(2){background:linear-gradient(135deg,#eef9f8,#fbffff)}.home-feature:nth-child(3){background:linear-gradient(135deg,#f3f2ff,#fbfbff)}.home-feature>span { align-items:center; background:#fff; border-radius:14px; color:#236ee8; display:flex; font-size:1.7rem; height:52px; justify-content:center; width:52px; }.home-feature h2 { color:#183250; font-size:1.05rem; margin:0 0 .35rem; }.home-feature p { color:#61748c; font-size:.82rem; line-height:1.5; margin:0; }.home-feature b { color:#1d69e2; font-size:1.7rem; margin-left:auto; }.trust-bar { background:#f4f7fb; border-radius:12px; color:#536a84; display:flex; flex-wrap:wrap; font-size:.8rem; font-weight:700; gap:1.5rem 3rem; justify-content:center; margin-top:2rem; padding:1rem; }.search-result-title p { color:#1d70e8; font-size:.8rem; font-weight:900; letter-spacing:.08em; margin:0 0 .35rem; }.result-grid { display:grid; gap:1.1rem; grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:1.1rem; }.result-section { background:#f8fbff; border:1px solid #dce6f2; border-radius:16px; padding:1rem; }.result-head h3 { color:#183250; font-size:1.05rem; margin:0; }.result-cards { display:grid; gap:.65rem; margin-top:.8rem; }.mini-card { background:#fff; border:1px solid #e0e8f2; border-radius:11px; color:inherit; cursor:pointer; display:grid; gap:.3rem; padding:.75rem .8rem; text-align:left; text-decoration:none; transition:.18s ease; }.mini-card span { color:#177867; font-size:.72rem; font-weight:850; }.mini-card strong { color:#1a3554; font-size:.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.mini-card small { color:#74869a; font-size:.75rem; }.loan-mini { font:inherit; width:100%; }.video-mini { grid-template-columns:72px 1fr; }.video-mini img { border-radius:7px; grid-row:span 2; height:48px; object-fit:cover; width:72px; }.result-message { background:#fff; border-radius:10px; color:#75879a; font-size:.84rem; margin:.8rem 0 0; padding:.8rem; }@media (max-width:980px){.home-hero{grid-template-columns:1fr;padding:2.6rem}.hero-art{display:none}.category-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.result-grid{grid-template-columns:1fr}}@media (max-width:620px){.home-page{padding-top:1rem}.home-hero{border-radius:18px;padding:2.2rem 1.35rem}.hero-copy h1{font-size:2.55rem}.home-search{grid-template-columns:auto 1fr}.home-search .btn{grid-column:1/-1;width:100%}.category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.feature-grid{grid-template-columns:1fr}.trust-bar{align-items:start;flex-direction:column;gap:.65rem}.section-title{align-items:start;flex-direction:column}.home-section,.search-results{margin-top:2rem}}
+</style>

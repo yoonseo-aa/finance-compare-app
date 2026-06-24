@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from "vue";
+import { onBeforeUnmount, ref } from "vue";
 
 import { apiFetch } from "../api/client";
+import AiNewsLoading from "../components/AiNewsLoading.vue";
 
 const query = ref("");
 const searchedQuery = ref("");
@@ -10,6 +11,10 @@ const videos = ref([]);
 const newsError = ref("");
 const videoError = ref("");
 const loading = ref(false);
+const isNewsLoading = ref(false);
+const newsElapsedSeconds = ref(0);
+let newsTimer = null;
+let activeNewsRequest = 0;
 const suggestions = ["삼성전자", "금리 인하", "ETF", "환율", "미국 증시", "2차전지"];
 
 function cleanText(value = "") {
@@ -24,25 +29,28 @@ async function search(value = query.value) {
   query.value = keyword;
   searchedQuery.value = keyword;
   loading.value = true;
+  isNewsLoading.value = true;
+  newsElapsedSeconds.value = 0;
+  const requestId = ++activeNewsRequest;
+  if (newsTimer) clearInterval(newsTimer);
+  newsTimer = setInterval(() => { newsElapsedSeconds.value += 1; }, 1000);
   newsError.value = "";
   videoError.value = "";
-  try {
-    const [newsResult, videoResult] = await Promise.allSettled([
-      apiFetch(`/search/news/?query=${encodeURIComponent(keyword)}`),
-      apiFetch(`/videos/?q=${encodeURIComponent(keyword)}`)
-    ]);
-    if (newsResult.status === "fulfilled") {
-      news.value = (newsResult.value.results || []).slice(0, 4);
-      newsError.value = newsResult.value.error || "";
-    } else newsError.value = newsResult.reason.message || "뉴스를 불러오지 못했습니다.";
-    if (videoResult.status === "fulfilled") {
-      videos.value = (videoResult.value.results || []).slice(0, 4);
-      videoError.value = videoResult.value.error || "";
-    } else videoError.value = videoResult.reason.message || "영상을 불러오지 못했습니다.";
-  } finally {
-    loading.value = false;
-  }
+  const newsRequest = apiFetch(`/search/news/?query=${encodeURIComponent(keyword)}`).then(data => {
+    if (requestId !== activeNewsRequest) return;
+    news.value = (data.results || []).slice(0, 4); newsError.value = data.error || "";
+  }).catch(err => { if (requestId === activeNewsRequest) newsError.value = err.message || "뉴스를 불러오지 못했습니다."; }).finally(() => {
+    if (requestId !== activeNewsRequest) return;
+    isNewsLoading.value = false; if (newsTimer) { clearInterval(newsTimer); newsTimer = null; }
+  });
+  const videoRequest = apiFetch(`/videos/?q=${encodeURIComponent(keyword)}`).then(data => {
+    videos.value = (data.results || []).slice(0, 4); videoError.value = data.error || "";
+  }).catch(err => { videoError.value = err.message || "영상을 불러오지 못했습니다."; });
+  await Promise.allSettled([newsRequest, videoRequest]);
+  loading.value = false;
 }
+
+onBeforeUnmount(() => { if (newsTimer) clearInterval(newsTimer); });
 
 function youtubeSearchUrl() {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(searchedQuery.value)}`;
@@ -68,11 +76,12 @@ function youtubeSearchUrl() {
     <template v-else>
       <section class="content-result-section">
         <div class="result-section-head"><div><p>추천 뉴스</p><h2>“{{ searchedQuery }}” 관련 뉴스</h2></div><span>{{ news.length }}개 결과</span></div>
-        <p v-if="newsError" class="content-error">{{ newsError }}</p>
-        <div v-if="news.length" class="news-grid">
+        <AiNewsLoading v-if="isNewsLoading" :elapsed-seconds="newsElapsedSeconds" />
+        <p v-else-if="newsError" class="content-error">{{ newsError }}</p>
+        <div v-else-if="news.length" class="news-grid">
           <a v-for="article in news" :key="article.url" class="news-card" :href="article.url" target="_blank" rel="noopener noreferrer"><span>{{ cleanText(article.source) }}</span><h3>{{ cleanText(article.title) }}</h3><p>{{ cleanText(article.description) }}</p><small>{{ article.published_at }}</small><em>{{ article.reason }}</em></a>
         </div>
-        <p v-else-if="!loading && !newsError" class="no-result">검색 결과가 없습니다. 다른 키워드로 검색해보세요.</p>
+        <p v-else-if="!loading" class="no-result">검색 결과가 없습니다. 다른 키워드로 검색해보세요.</p>
       </section>
 
       <section class="content-result-section">

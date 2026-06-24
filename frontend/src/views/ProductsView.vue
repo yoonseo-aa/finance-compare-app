@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 import { apiFetch } from "../api/client";
 import ProductCard from "../components/ProductCard.vue";
@@ -7,13 +8,23 @@ import StatusBlock from "../components/StatusBlock.vue";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
+const route = useRoute();
+const router = useRouter();
 const products = ref([]);
 const banks = ref([]);
 const loading = ref(false);
 const error = ref("");
 const viewMode = ref("bank");
+const mainProductGroup = ref("deposit");
+const loanType = ref("all");
+const loans = ref([]);
+const loanLoading = ref(false);
+const loanViewMode = ref("bank");
+const focusedLoanBank = ref("");
+const focusedLoanType = ref("");
 const focusedBank = ref("");
 const filters = reactive({ q: "", bank: "", sort: "rate" });
+const loanFilters = reactive({ q: "", bank: "", sort: "rate" });
 
 const joinedProductIds = computed(() => new Set((auth.user?.joined_products || []).map(product => Number(product.id))));
 const joinedCount = computed(() => joinedProductIds.value.size);
@@ -46,6 +57,22 @@ const productTypeCounts = computed(() => {
   return [...counts.entries()].map(([name, count]) => ({ name, count }));
 });
 
+const loanBanks = computed(() => [...new Set(loans.value.map(loan => loan.bank_name).filter(Boolean))].sort());
+const groupedLoans = computed(() => {
+  const groups = new Map();
+  const focusedGroup = loanViewMode.value === "bank" ? focusedLoanBank.value : focusedLoanType.value;
+  const visibleLoans = focusedGroup
+    ? loans.value.filter(loan => (loanViewMode.value === "bank" ? loan.bank_name : loan.loan_type_label) === focusedGroup)
+    : loans.value;
+  visibleLoans.forEach(loan => {
+    const key = loanViewMode.value === "bank" ? (loan.bank_name || "금융기관") : loan.loan_type_label;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(loan);
+  });
+  return [...groups.entries()].map(([name, items]) => ({ name, items }));
+});
+const isLoanGroupFocused = computed(() => Boolean(loanViewMode.value === "bank" ? focusedLoanBank.value : focusedLoanType.value));
+
 function groupIcon(name) {
   if (name.includes("적금")) return "♧";
   if (name.includes("예금")) return "◈";
@@ -64,6 +91,53 @@ async function loadProducts() {
   } finally {
     loading.value = false;
   }
+}
+
+async function loadLoans() {
+  loanLoading.value = true;
+  error.value = "";
+  try {
+    const params = new URLSearchParams({ type: loanType.value });
+    Object.entries(loanFilters).forEach(([key, value]) => value && params.set(key, value));
+    const data = await apiFetch(`/loans/?${params.toString()}`);
+    loans.value = data.results || [];
+  } catch (err) {
+    error.value = err.message || "대출 상품을 불러오지 못했습니다.";
+  } finally {
+    loanLoading.value = false;
+  }
+}
+
+function visibleLoanItems(group) {
+  return isLoanGroupFocused.value ? group.items : group.items.slice(0, 2);
+}
+
+function toggleLoanGroup(groupName) {
+  if (isLoanGroupFocused.value) {
+    focusedLoanBank.value = "";
+    focusedLoanType.value = "";
+    return;
+  }
+  if (loanViewMode.value === "bank") focusedLoanBank.value = groupName;
+  else focusedLoanType.value = groupName;
+}
+
+function openLoanDetail(loan) {
+  router.push({ name: "loan-detail", params: { type: loan.loan_type, code: loan.product_code } });
+}
+
+function resetLoanFilters() {
+  loanFilters.q = "";
+  loanFilters.bank = "";
+  loanFilters.sort = "rate";
+  focusedLoanBank.value = "";
+  focusedLoanType.value = "";
+  loadLoans();
+}
+
+function selectMainGroup(group) {
+  mainProductGroup.value = group;
+  if (group === "loan") loadLoans();
 }
 
 function resetFilters() {
@@ -88,6 +162,16 @@ function toggleBankFocus(bankName) {
 
 onMounted(async () => {
   banks.value = await apiFetch("/products/banks/");
+  const group = route.query.group;
+  const query = typeof route.query.q === "string" ? route.query.q : "";
+  if (group === "loan") {
+    mainProductGroup.value = "loan";
+    loanType.value = "all";
+    loanFilters.q = query;
+    await loadLoans();
+    return;
+  }
+  filters.q = query;
   await loadProducts();
 });
 </script>
@@ -96,7 +180,7 @@ onMounted(async () => {
   <main class="container products-page-local">
     <header class="products-hero-local">
       <div>
-        <h1>예적금 상품</h1>
+        <h1>상품</h1>
         <p>은행별 필터와 검색으로 상품을 비교합니다.</p>
       </div>
       <RouterLink class="interest-link-local" to="/favorites">
@@ -106,7 +190,12 @@ onMounted(async () => {
       </RouterLink>
     </header>
 
-    <form class="product-filter-local" @submit.prevent="loadProducts">
+    <div class="main-product-tabs-local">
+      <button type="button" :class="{ active: mainProductGroup === 'deposit' }" @click="selectMainGroup('deposit')">예적금</button>
+      <button type="button" :class="{ active: mainProductGroup === 'loan' }" @click="selectMainGroup('loan')">대출</button>
+    </div>
+
+    <form v-if="mainProductGroup === 'deposit'" class="product-filter-local" @submit.prevent="loadProducts">
       <label class="product-search-local">
         <span aria-hidden="true">⌕</span>
         <input v-model="filters.q" placeholder="상품명 또는 은행명으로 검색하세요">
@@ -128,7 +217,7 @@ onMounted(async () => {
       <button class="btn primary product-search-submit" type="submit">검색하기</button>
     </form>
 
-    <div class="products-page-local">
+    <div v-if="mainProductGroup === 'deposit'" class="products-page-local">
       <section class="products-content-local">
         <div class="view-tabs-local" role="tablist" aria-label="상품 보기 방식">
           <button type="button" :class="{ active: viewMode === 'bank' }" @click="viewMode = 'bank'">
@@ -187,12 +276,44 @@ onMounted(async () => {
         <button class="btn ghost guide-button-local" type="button" @click="viewMode = 'type'">상품 유형별 보기로 이동 →</button>
       </aside> -->
     </div>
+    <section v-else class="loan-results-local">
+      <form class="product-filter-local loan-filter-local" @submit.prevent="focusedLoanBank = ''; focusedLoanType = ''; loadLoans()">
+        <label class="product-search-local"><span aria-hidden="true">⌕</span><input v-model="loanFilters.q" placeholder="상품명 또는 금융회사명으로 검색하세요"></label>
+        <label class="product-select-local"><span aria-hidden="true">⌂</span><select v-model="loanFilters.bank"><option value="">전체 금융기관</option><option v-for="bank in loanBanks" :key="bank" :value="bank">{{ bank }}</option></select></label>
+        <label class="product-select-local"><span aria-hidden="true">↕</span><select v-model="loanFilters.sort"><option value="rate">금리 낮은순</option><option value="bank">금융기관순</option><option value="name">상품명순</option></select></label>
+        <button class="btn primary product-search-submit" type="submit">검색하기</button>
+      </form>
+      <div class="view-tabs-local loan-view-tabs-local" role="tablist" aria-label="대출 보기 방식">
+        <button type="button" :class="{ active: loanViewMode === 'bank' }" @click="loanViewMode = 'bank'; focusedLoanBank = ''; focusedLoanType = ''">금융기관별 보기</button>
+        <button type="button" :class="{ active: loanViewMode === 'type' }" @click="loanViewMode = 'type'; focusedLoanBank = ''; focusedLoanType = ''">대출 유형별 보기</button>
+      </div>
+      <p v-if="loanLoading" class="status-block">대출 상품을 불러오는 중입니다.</p>
+      <p v-else-if="error" class="status-block warning">{{ error }}</p>
+      <section v-else-if="groupedLoans.length" class="loan-groups-local">
+        <article v-for="group in groupedLoans" :key="group.name" class="loan-group-local">
+          <div class="product-group-head-local">
+            <div class="group-name-local"><span class="group-icon-local" aria-hidden="true">⌂</span><h2>{{ group.name }}</h2><em>{{ group.items.length }}개 상품</em></div>
+            <button v-if="isLoanGroupFocused || group.items.length > 2" class="group-more-local" type="button" @click="toggleLoanGroup(group.name)">{{ isLoanGroupFocused ? '‹ 돌아가기' : '전체 보기 ›' }}</button>
+          </div>
+          <div class="loan-grid-local">
+            <article v-for="loan in visibleLoanItems(group)" :key="`${loan.loan_type}-${loan.product_code}`" class="loan-card-local" role="link" tabindex="0" @click="openLoanDetail(loan)" @keydown.enter="openLoanDetail(loan)">
+              <div class="loan-card-top-local"><span>{{ loan.loan_type_label }}</span><strong>{{ loan.rate_min ? `최저 ${loan.rate_min.toFixed(2)}%` : '금리 정보 확인' }}</strong></div>
+              <h3>{{ loan.name }}</h3><p>{{ loan.bank_name }}</p>
+              <dl><div><dt>대출 한도</dt><dd>{{ loan.loan_limit || '상품별 상이' }}</dd></div><div><dt>상환 방식</dt><dd>{{ loan.repay_type || '상품별 상이' }}</dd></div><div><dt>가입 대상</dt><dd>{{ loan.join_member || '상세 조건 확인' }}</dd></div></dl>
+              <p class="loan-card-note-local">{{ loan.loan_inci_expn || loan.early_rpay_fee || '세부 조건은 금융기관 상품 안내에서 확인해주세요.' }}</p><button class="loan-detail-link-local" type="button" @click.stop="openLoanDetail(loan)">상품 상세보기 ›</button>
+            </article>
+          </div>
+        </article>
+      </section>
+      <section v-else class="product-empty-local"><h2>조건에 맞는 대출 상품이 없습니다.</h2><p>검색어를 줄이거나 금융기관 필터를 전체로 변경해보세요.</p><button class="btn ghost" type="button" @click="resetLoanFilters">필터 초기화</button></section>
+    </section>
   </main>
 </template>
 
 <style scoped>
 .products-page-local { min-height: calc(100vh - 72px); padding-top: 2.8rem; padding-bottom: 4rem; }
 .products-hero-local { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: 1.45rem; }
+.main-product-tabs-local { display: grid; grid-template-columns: repeat(2, 1fr); gap: .25rem; background: #edf2f8; border-radius: 12px; margin-bottom: .9rem; padding: .25rem; }.main-product-tabs-local button { min-height: 44px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #526780; cursor: pointer; font-weight: 850; }.main-product-tabs-local button.active { border-color: #9fc1ff; background: #fff; color: #196ae9; }.loan-groups-local { display:grid; gap:1.35rem; }.loan-group-local { border:1px solid #dce6f2; border-radius:18px; background:#f8fbff; padding:1rem; }.loan-grid-local { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }.loan-card-local { border:1px solid #dce6f2; border-radius:14px; background:#fff; cursor:pointer; padding:1rem; box-shadow:0 5px 16px rgba(29,55,88,.045); transition:.18s ease; }.loan-card-local:hover,.loan-card-local:focus-visible { border-color:#9bc0ff; box-shadow:0 12px 24px rgba(38,100,220,.1); outline:0; transform:translateY(-2px); }.loan-card-top-local { display:flex; justify-content:space-between; gap:.5rem; align-items:center; }.loan-card-top-local span { border-radius:999px; background:#e9f8f5; color:#16806f; padding:.28rem .52rem; font-size:.72rem; font-weight:900; }.loan-card-top-local strong { color:#1768e8; font-size:.9rem; }.loan-card-local h3 { color:#183250; font-size:1.05rem; line-height:1.4; margin:.75rem 0 .25rem; }.loan-card-local > p { color:#6b7d93; margin:0; }.loan-card-local dl { border-top:1px dashed #dce6f0; color:#64768e; font-size:.8rem; margin:1rem 0 0; padding-top:.7rem; }.loan-card-local dl div { display:flex; gap:.5rem; justify-content:space-between; margin-top:.35rem; }.loan-card-local dd { margin:0; max-width:62%; overflow:hidden; text-align:right; text-overflow:ellipsis; white-space:nowrap; }.loan-card-note-local { border-radius:8px; background:#f4f8fd; color:#58708a; font-size:.75rem; line-height:1.45; margin-top:.9rem !important; padding:.55rem .65rem; }.loan-detail-link-local { background:transparent; border:0; color:#1f6ee8; cursor:pointer; font-weight:850; margin-top:.8rem; padding:0; }.loan-view-tabs-local { margin-bottom:1rem; }
 .products-hero-local h1 { margin: 0; color: #102a4b; font-size: 2rem; letter-spacing: -.045em; }
 .products-hero-local p { margin: .42rem 0 0; color: var(--muted); }
 .interest-link-local { display: inline-flex; align-items: center; gap: .5rem; min-height: 46px; border: 1px solid #dce6f2; border-radius: 12px; background: #fff; box-shadow: 0 7px 18px rgba(29, 55, 88, .06); color: #344b68; font-weight: 850; padding: 0 .9rem; text-decoration: none; }
@@ -233,6 +354,6 @@ onMounted(async () => {
 .product-empty-local > span { color: #2d76ec; font-size: 2rem; }
 .product-empty-local h2 { margin: 0; color: #1d3858; font-size: 1.2rem; }
 .product-empty-local p { margin: 0; }
-@media (max-width: 980px) { .products-layout-local { grid-template-columns: 1fr; } .product-guide-local { position: static; } }
-@media (max-width: 720px) { .products-page-local { padding-top: 1.75rem; } .products-hero-local { align-items: stretch; flex-direction: column; } .interest-link-local { align-self: flex-start; } .product-filter-local { grid-template-columns: 1fr; } .product-card-grid-local { grid-template-columns: 1fr; } .product-group-head-local { align-items: start; } }
+@media (max-width: 980px) { .products-layout-local { grid-template-columns: 1fr; } .product-guide-local { position: static; } .loan-grid-local { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .products-page-local { padding-top: 1.75rem; } .products-hero-local { align-items: stretch; flex-direction: column; } .interest-link-local { align-self: flex-start; } .product-filter-local { grid-template-columns: 1fr; } .product-card-grid-local, .loan-grid-local { grid-template-columns: 1fr; } .product-group-head-local { align-items: start; } .loan-type-tabs-local { display:grid; grid-template-columns:1fr; } }
 </style>

@@ -120,6 +120,60 @@ def fetch_finlife_products(product_type="deposit"):
         count += 1
     return count
 
+
+def fetch_finlife_loans(loan_type="credit", limit=50):
+    api_key = os.getenv("FINLIFE_API_KEY")
+    if not api_key:
+        raise FinlifeAPIError("FINLIFE_API_KEY가 설정되어 있지 않습니다.")
+    endpoints = {
+        "credit": "creditLoanProductsSearch",
+        "mortgage": "mortgageLoanProductsSearch",
+        "rent": "rentHouseLoanProductsSearch",
+    }
+    if loan_type not in endpoints:
+        raise FinlifeAPIError("지원하지 않는 대출 유형입니다.")
+    response = requests.get(
+        f"https://finlife.fss.or.kr/finlifeapi/{endpoints[loan_type]}.json",
+        params={"auth": api_key, "topFinGrpNo": "020000", "pageNo": 1},
+        timeout=10,
+    )
+    response.raise_for_status()
+    payload = response.json().get("result", {})
+    if payload.get("err_cd") and payload["err_cd"] != "000":
+        raise FinlifeAPIError(f"금융 API 오류({payload['err_cd']}): {payload.get('err_msg', '알 수 없는 오류')}")
+    type_labels = {"credit": "개인신용대출", "mortgage": "주택담보대출", "rent": "전세자금대출"}
+    options_by_code = {}
+    for option in payload.get("optionList", []):
+        options_by_code.setdefault(option.get("fin_prdt_cd"), []).append(option)
+    products = []
+    for item in payload.get("baseList", [])[:limit]:
+        product_code = item.get("fin_prdt_cd", "")
+        options = options_by_code.get(product_code, [])
+        products.append({
+            "product_code": item.get("fin_prdt_cd", ""),
+            "loan_type": loan_type,
+            "loan_type_label": type_labels[loan_type],
+            "bank_name": item.get("kor_co_nm", ""),
+            "name": item.get("fin_prdt_nm", ""),
+            "join_way": item.get("join_way", ""),
+            "join_member": item.get("join_member", ""),
+            "loan_inci_expn": item.get("loan_inci_expn", ""),
+            "early_rpay_fee": item.get("erly_rpay_fee", ""),
+            "loan_limit": item.get("loan_lmt", ""),
+            "repay_type": item.get("rpay_type_nm", ""),
+            "fin_co_no": item.get("fin_co_no", ""),
+            "cb_name": item.get("cb_name", ""),
+            "loan_product_type": item.get("crdt_prdt_type_nm", "") or item.get("mrtg_type_nm", "") or item.get("rent_type_nm", ""),
+            "dcls_month": item.get("dcls_month", ""),
+            "dcls_start_day": item.get("dcls_strt_day", ""),
+            "dcls_end_day": item.get("dcls_end_day", ""),
+            "fin_co_submit_day": item.get("fin_co_subm_day", ""),
+            "options": options,
+            "rate_min": min([float(option.get("lend_rate_min") or 0) for option in options if option.get("lend_rate_min") is not None] or [0]),
+            "rate_max": max([float(option.get("lend_rate_max") or 0) for option in options if option.get("lend_rate_max") is not None] or [0]),
+        })
+    return products
+
 SPOT_API_SYMBOLS = {
     "gold": "GC=F",
     "silver": "SI=F",

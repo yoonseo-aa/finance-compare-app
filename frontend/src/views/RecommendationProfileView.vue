@@ -150,7 +150,7 @@ async function submit() {
       <p v-if="error" class="form-error recommend-message-local">{{ error }}</p>
       <p v-if="success" class="form-success recommend-message-local">{{ success }}</p>
       <div class="recommend-actions-local">
-        <button class="btn primary large" type="submit" :disabled="saving">{{ saving ? "저장 중" : "결과 보기" }}</button>
+        <button class="btn primary large" type="submit" :disabled="saving">{{ saving ? "저장 중" : "저장" }}</button>
         <button class="btn ghost large" type="button" @click="$router.back()">돌아가기</button>
       </div>
     </form>
