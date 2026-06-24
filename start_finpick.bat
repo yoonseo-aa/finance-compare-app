@@ -5,15 +5,15 @@ set "ROOT=%~dp0"
 set "BACKEND=%ROOT%backend"
 set "FRONTEND=%ROOT%frontend"
 set "BACKEND_PY=%BACKEND%\.venv\Scripts\python.exe"
-set "BACKEND_PIP=%BACKEND%\.venv\Scripts\pip.exe"
-set "NPM=C:\Program Files\nodejs\npm.cmd"
-
-if not exist "%NPM%" set "NPM=npm"
+set "BACKEND_PY_ALT=%BACKEND%\venv\Scripts\python.exe"
+set "PYTHON311=C:\Users\SSAFY\AppData\Local\Programs\Python\Python311\python.exe"
 
 echo.
-echo Starting FinPick development servers...
-echo Backend API : http://127.0.0.1:8000/api/
-echo Frontend    : http://127.0.0.1:5173/
+echo ========================================
+echo FinPick - start all servers
+echo ========================================
+echo Backend : http://127.0.0.1:8000/api/
+echo Frontend: http://127.0.0.1:5173/
 echo.
 
 if not exist "%BACKEND%" (
@@ -28,64 +28,22 @@ if not exist "%FRONTEND%" (
   exit /b 1
 )
 
-if not exist "%BACKEND%\.env" (
-  echo Creating backend .env from .env.example...
-  copy "%BACKEND%\.env.example" "%BACKEND%\.env" >nul
+call "%ROOT%stop_finpick.bat" nopause
+
+if exist "%BACKEND_PY%" (
+  start "FinPick Backend" cmd /k "cd /d "%BACKEND%" && "%BACKEND_PY%" manage.py runserver 127.0.0.1:8000 --noreload"
+) else if exist "%BACKEND_PY_ALT%" (
+  start "FinPick Backend" cmd /k "cd /d "%BACKEND%" && "%BACKEND_PY_ALT%" manage.py runserver 127.0.0.1:8000 --noreload"
+) else if exist "%PYTHON311%" (
+  start "FinPick Backend" cmd /k "cd /d "%BACKEND%" && "%PYTHON311%" manage.py runserver 127.0.0.1:8000 --noreload"
+) else (
+  start "FinPick Backend" cmd /k "cd /d "%BACKEND%" && py -3.11 manage.py runserver 127.0.0.1:8000 --noreload"
 )
 
-if not exist "%BACKEND_PY%" (
-  echo Creating backend virtual environment...
-  py -3 -m venv "%BACKEND%\.venv"
-  if errorlevel 1 (
-    python -m venv "%BACKEND%\.venv"
-  )
-)
-
-if not exist "%BACKEND_PY%" (
-  echo ERROR: Python virtual environment could not be created.
-  pause
-  exit /b 1
-)
-
-if not exist "%BACKEND%\db.sqlite3" (
-  echo Initializing backend...
-  "%BACKEND_PIP%" install -r "%BACKEND%\requirements.txt"
-  if errorlevel 1 goto fail
-  "%BACKEND_PY%" "%BACKEND%\manage.py" makemigrations
-  if errorlevel 1 goto fail
-  "%BACKEND_PY%" "%BACKEND%\manage.py" migrate
-  if errorlevel 1 goto fail
-  "%BACKEND_PY%" "%BACKEND%\manage.py" seed_demo
-  if errorlevel 1 goto fail
-)
-
-if not exist "%FRONTEND%\node_modules" (
-  echo Installing frontend packages...
-  pushd "%FRONTEND%"
-  call "%NPM%" install
-  if errorlevel 1 (
-    popd
-    goto fail
-  )
-  popd
-)
-
-echo Opening backend server window...
-start "FinPick Backend" "%ROOT%scripts\start_backend.bat"
-
-echo Opening frontend server window...
-start "FinPick Frontend" "%ROOT%scripts\start_frontend.bat"
+start "FinPick Frontend" cmd /k "cd /d "%FRONTEND%" && npm.cmd run dev -- --host 127.0.0.1 --port 5173"
 
 echo.
-echo Done.
-echo Open http://127.0.0.1:5173/ in your browser.
-echo To stop servers, close the opened windows or run stop_finpick.bat.
+echo Started.
+echo Open http://127.0.0.1:5173/
 echo.
 pause
-exit /b 0
-
-:fail
-echo.
-echo ERROR: Setup failed. Check the message above.
-pause
-exit /b 1

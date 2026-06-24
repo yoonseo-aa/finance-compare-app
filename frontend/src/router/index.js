@@ -36,7 +36,7 @@ const router = createRouter({
     { path: "/mypage", name: "mypage", component: MyPageView, meta: { requiresAuth: true } },
     { path: "/profile", name: "profile", component: ProfileView, meta: { requiresAuth: true } },
     { path: "/recommend-profile", name: "recommend-profile", component: RecommendationProfileView, meta: { requiresAuth: true } },
-    { path: "/recommendations", name: "recommendations", component: RecommendationsView }
+    { path: "/recommendations", name: "recommendations", component: RecommendationsView },
   ],
   scrollBehavior: () => ({ top: 0 })
 });
