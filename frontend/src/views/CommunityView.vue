@@ -1,7 +1,8 @@
-﻿<script setup>
+<script setup>
 import { computed, ref } from "vue";
 
 import { communityCategories, useCommunityStore } from "../stores/community";
+import PageHeader from "../components/PageHeader.vue";
 
 const community = useCommunityStore();
 const activeCategory = ref("전체");
@@ -20,18 +21,22 @@ const posts = computed(() => {
     return searchableText.includes(keyword);
   });
 });
+
 const popularPosts = computed(() => community.popularPosts);
 </script>
 
 <template>
   <main class="container community-page">
-    <section class="community-hero">
-      <div class="community-title-block">
-        <span class="page-kicker">FinPick 라운지</span>
-        <h1>커뮤니티</h1>
-        <p>금융 상품 후기와 재테크 고민을 함께 나눠보세요.</p>
-      </div>
-      <RouterLink class="btn primary write-button" to="/community/write">글쓰기</RouterLink>
+    <section class="community-head-row">
+      <PageHeader
+        eyebrow="FINPICK LOUNGE"
+        title="커뮤니티"
+        description="금융 상품 후기와 재테크 고민을 함께 나눠보세요."
+      />
+
+      <RouterLink class="btn primary write-button" to="/community/write">
+        글쓰기
+      </RouterLink>
     </section>
 
     <section class="community-toolbar" aria-label="커뮤니티 검색 및 필터">
@@ -43,7 +48,13 @@ const popularPosts = computed(() => community.popularPosts);
           placeholder="제목, 내용, 태그, 작성자로 검색"
         >
       </label>
-      <button v-if="searchQuery" class="btn ghost reset-button" type="button" @click="searchQuery = ''">
+
+      <button
+        v-if="searchQuery"
+        class="btn ghost reset-button"
+        type="button"
+        @click="searchQuery = ''"
+      >
         초기화
       </button>
     </section>
@@ -78,13 +89,16 @@ const popularPosts = computed(() => community.popularPosts);
               <span class="category-badge">{{ post.category }}</span>
               <span class="post-time">{{ post.createdAt }}</span>
             </div>
+
             <div class="post-main-copy">
               <h2>{{ post.title }}</h2>
               <p>{{ post.content }}</p>
             </div>
+
             <div class="post-tags">
               <span v-for="tag in post.tags" :key="tag">#{{ tag }}</span>
             </div>
+
             <div class="post-meta">
               <span class="author">{{ post.author }}</span>
               <span>댓글 {{ post.comments }}</span>
@@ -106,6 +120,7 @@ const popularPosts = computed(() => community.popularPosts);
             <h2>인기 게시글</h2>
             <p>댓글과 좋아요 반응이 많은 글입니다.</p>
           </div>
+
           <RouterLink
             v-for="(post, index) in popularPosts"
             :key="post.id"
@@ -127,24 +142,18 @@ const popularPosts = computed(() => community.popularPosts);
 
 <style scoped>
 .community-page {
-  --community-ink: #152238;
-  --community-subtle: #6b7890;
-  --community-blue: #2f6fed;
-  --community-mint: #12a594;
-  --community-cream: #fff9ec;
-  --community-border: #dbe6f2;
-  --community-card: rgba(255, 255, 255, .92);
-  padding-top: 3rem;
-  padding-bottom: 4rem;
+  --community-sidebar-width: 330px;
+  --community-column-gap: 1.4rem;
 }
 
-.community-hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 1.5rem;
-  margin-bottom: 1.4rem;
+.community-head-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--community-sidebar-width);
+  column-gap: var(--community-column-gap);
+  align-items: start;
+  margin-bottom: 1.45rem;
 }
+
 
 .community-title-block {
   display: grid;
@@ -159,25 +168,15 @@ const popularPosts = computed(() => community.popularPosts);
   letter-spacing: 0;
 }
 
-.community-hero h1 {
-  margin: 0;
-  color: var(--community-ink);
-  font-size: clamp(2.35rem, 4.8vw, 4rem);
-  line-height: 1.08;
-}
 
-.community-hero p {
-  margin: 0;
-  color: var(--community-subtle);
-  font-size: 1rem;
-  line-height: 1.7;
-}
 
 .write-button {
-  min-width: 104px;
-  min-height: 46px;
-  border: 0;
+  justify-self: end;
+  width: fit-content;
+  min-width: 72px;
+  min-height: 44px;
   border-radius: 12px;
+  white-space: nowrap;
   background: linear-gradient(135deg, #2f6fed, #12a594);
   box-shadow: 0 14px 28px rgba(47, 111, 237, .22);
 }
@@ -266,8 +265,8 @@ const popularPosts = computed(() => community.popularPosts);
 
 .community-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
-  gap: 1.4rem;
+  grid-template-columns: minmax(0, 1fr) var(--community-sidebar-width);
+  gap: var(--community-column-gap);
   align-items: start;
 }
 
@@ -465,11 +464,15 @@ const popularPosts = computed(() => community.popularPosts);
 @media (max-width: 900px) {
   .community-hero,
   .community-grid {
-    display: grid;
+    grid-template-columns: 1fr;
   }
 
-  .community-grid {
-    grid-template-columns: 1fr;
+  .community-hero-spacer {
+    display: none;
+  }
+
+  .write-button {
+    justify-self: start;
   }
 
   .popular-panel {
@@ -479,7 +482,7 @@ const popularPosts = computed(() => community.popularPosts);
 
 @media (max-width: 560px) {
   .community-page {
-    padding-top: 2rem;
+    padding-top: 1.75rem;
   }
 
   .community-toolbar,

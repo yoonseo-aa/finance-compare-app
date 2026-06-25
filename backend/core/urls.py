@@ -18,6 +18,7 @@ urlpatterns = [
     path("auth/me/", views.MeAPIView.as_view(), name="me"),
     path("auth/password/", views.PasswordChangeAPIView.as_view(), name="password_change"),
     path("spot/", views.spot_prices, name="spot"),
+    path("companies/overview/", views.company_overview, name="company_overview"),
     path("videos/", views.videos, name="videos"),
     path("search/news/", views.news_search, name="news_search"),
     path("map/config/", views.map_config, name="map_config"),
@@ -32,5 +33,3 @@ urlpatterns = [
     path("stats/", views.stats, name="stats"),
     path("health/", views.health, name="health"),
 ]
-
-

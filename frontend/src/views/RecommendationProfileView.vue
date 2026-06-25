@@ -1,9 +1,12 @@
-﻿<script setup>
+<script setup>
 import { reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 
 import { useAuthStore } from "../stores/auth";
+import PageHeader from "../components/PageHeader.vue";
 
 const auth = useAuthStore();
+const router = useRouter();
 const error = ref("");
 const success = ref("");
 const saving = ref(false);
@@ -30,6 +33,7 @@ async function submit() {
   try {
     await auth.updateProfile(form);
     success.value = "추천 진단 정보가 저장되었습니다.";
+    router.push({ path: "/recommendations", query: { from: "profile" } });
   } catch (err) {
     error.value = err.message;
   } finally {
@@ -40,10 +44,11 @@ async function submit() {
 
 <template>
   <main class="container recommend-flow-page">
-    <section class="recommend-hero-local">
-      <h1>예적금 추천 진단</h1>
-      <p>현재 상황을 입력하면 금리, 기간, 생애주기, 목적을 함께 계산해 추천 점수와 이유를 보여드립니다.</p>
-    </section>
+    <PageHeader
+      eyebrow="FINPICK RECOMMENDATION"
+      title="추천진단"
+      description="현재 상황을 입력하면 금리, 기간, 생애주기, 목적을 함께 계산해 추천 점수와 이유를 보여드립니다."
+    />
 
     <form class="recommend-profile-form-local" @submit.prevent="submit">
       <div class="recommend-top-grid-local">

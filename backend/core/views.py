@@ -1,13 +1,14 @@
-﻿import os
+import os
 from datetime import datetime
 
 import requests
 
-from django.db.models import Max, Q
+from django.db.models import Count, Max, Q
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -40,7 +41,7 @@ class SignupAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         token, _ = Token.objects.get_or_create(user=user)
-        return Response({"token": token.key, "user": UserSerializer(user).data}, status=status.HTTP_201_CREATED)
+        return Response({"token": token.key, "user": UserSerializer(user, context={"request": request}).data}, status=status.HTTP_201_CREATED)
 
 
 class LoginAPIView(APIView):
@@ -49,7 +50,7 @@ class LoginAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
         token, _ = Token.objects.get_or_create(user=user)
-        return Response({"token": token.key, "user": UserSerializer(user).data})
+        return Response({"token": token.key, "user": UserSerializer(user, context={"request": request}).data})
 
 
 
@@ -71,7 +72,7 @@ class SocialCallbackAPIView(APIView):
             state=request.data.get("state"),
         )
         token, _ = Token.objects.get_or_create(user=user)
-        return Response({"token": token.key, "user": UserSerializer(user).data})
+        return Response({"token": token.key, "user": UserSerializer(user, context={"request": request}).data})
 
 class LogoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -83,15 +84,16 @@ class LogoutAPIView(APIView):
 
 class MeAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        return Response(UserSerializer(request.user, context={"request": request}).data)
 
     def patch(self, request):
         serializer = ProfileUpdateSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(UserSerializer(request.user).data)
+        return Response(UserSerializer(request.user, context={"request": request}).data)
 
 
 class PasswordChangeAPIView(APIView):
@@ -116,7 +118,7 @@ class PasswordChangeAPIView(APIView):
 
         user.set_password(new_password)
         user.save(update_fields=["password"])
-        return Response(UserSerializer(user).data)
+        return Response(UserSerializer(user, context={"request": request}).data)
 
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
@@ -155,7 +157,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
             request.user.joined_products.remove(product)
         else:
             request.user.joined_products.add(product)
-        return Response(UserSerializer(request.user).data)
+        return Response(UserSerializer(request.user, context={"request": request}).data)
 
 
 class PostViewSet(viewsets.ModelViewSet):
@@ -221,6 +223,10 @@ def spot_prices(request):
         "error": error,
         "source": spot_data["source"],
         "symbol": spot_data["symbol"],
+        "exchange_rate": spot_data.get("exchange_rate"),
+        "currency": spot_data.get("currency", "KRW"),
+        "unit": spot_data.get("unit", "원/g"),
+        "units": spot_data.get("units", {"gram": "원/g", "don": "원/돈", "oz": "원/oz"}),
         "is_live": spot_data["is_live"],
     })
 
@@ -316,6 +322,43 @@ def sync_finlife(request):
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     return Response({"count": deposit_count + saving_count})
 
+
+
+@api_view(["GET"])
+def company_overview(request):
+    ensure_demo_data()
+    products = FinancialProduct.objects.prefetch_related("options").annotate(max_rate=Max("options__intr_rate2"))
+
+    bank_rows = FinancialProduct.objects.values("bank_name").annotate(
+        product_count=Count("id", distinct=True),
+        deposit_count=Count("id", filter=Q(product_type="deposit"), distinct=True),
+        saving_count=Count("id", filter=Q(product_type="saving"), distinct=True),
+        best_rate=Max("options__intr_rate2"),
+    ).order_by("-product_count", "bank_name")
+
+    top_products = products.order_by("-max_rate", "bank_name", "name")[:5]
+    highest_rate = products.aggregate(value=Max("options__intr_rate2"))["value"] or 0
+
+    return Response({
+        "summary": {
+            "products": products.count(),
+            "banks": bank_rows.count(),
+            "deposit_products": products.filter(product_type="deposit").count(),
+            "saving_products": products.filter(product_type="saving").count(),
+            "highest_rate": highest_rate,
+        },
+        "banks": [
+            {
+                "bank_name": row["bank_name"],
+                "product_count": row["product_count"],
+                "deposit_count": row["deposit_count"],
+                "saving_count": row["saving_count"],
+                "best_rate": row["best_rate"] or 0,
+            }
+            for row in bank_rows[:8]
+        ],
+        "top_products": ProductListSerializer(top_products, many=True).data,
+    })
 
 @api_view(["GET"])
 def loans(request):
@@ -482,11 +525,3 @@ def stats(request):
 @api_view(["GET"])
 def health(request):
     return Response({"status": "ok"})
-
-
-
-
-
-
-
-

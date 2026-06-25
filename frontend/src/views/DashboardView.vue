@@ -26,7 +26,7 @@ const recommendTabs = [
 ];
 
 const donutSegments = [
-  { label: "추천 원금", value: 45, color: "#176be9", className: "label-45" },
+  { label: "추천 원금", value: 45, color: "#2563eb", className: "label-45" },
   { label: "예상 이자", value: 30, color: "#14b8a6", className: "label-30" },
   { label: "저축 여력", value: 15, color: "#8b5cf6", className: "label-15" },
   { label: "안전 여유", value: 10, color: "#cbd5e1", className: "label-10" }
@@ -40,14 +40,18 @@ const maturityAssetAmount = computed(() => (
   Number(assetStatus.value.best_expected_amount || goal.value.best_expected_amount || 0)
 ));
 
-const donutStyle = computed(() => {
+const donutSvgSegments = computed(() => {
   let cursor = 0;
-  const stops = donutSegments.map(segment => {
-    const start = cursor;
+  return donutSegments.map(segment => {
+    const dashValue = Math.max(segment.value - 1.35, 0);
+    const svgSegment = {
+      ...segment,
+      dashArray: `${dashValue} ${100 - dashValue}`,
+      dashOffset: -cursor
+    };
     cursor += segment.value;
-    return `${segment.color} ${start}% ${cursor}%`;
+    return svgSegment;
   });
-  return { background: `conic-gradient(${stops.join(", ")})` };
 });
 
 const assetInfoCards = computed(() => [
@@ -298,10 +302,11 @@ onMounted(loadDashboard);
 
 <template>
   <main class="container dashboard-page aligned-dashboard-page">
-    <div class="section-head">
-      <h1>개인화 대시보드</h1>
-      <p>내 추천 프로필과 금융 API 상품 데이터를 바탕으로 목표 가능성, 재산현황, 추천 상품을 확인합니다.</p>
-    </div>
+    <PageHeader
+      eyebrow="MY FINANCE"
+      title="개인화 대시보드"
+      description="내 추천 프로필과 금융 API 상품 데이터를 바탕으로 목표 가능성, 재산현황, 추천 상품을 확인합니다."
+    />
 
     <div class="filter-bar dashboard-action-bar">
       <RouterLink class="btn primary" to="/recommend-profile">나의 정보 입력하기</RouterLink>
@@ -319,7 +324,27 @@ onMounted(loadDashboard);
 
         <div class="dashboard-asset-layout">
           <div class="asset-donut-area" aria-label="현재 재산현황 비율">
-            <div class="asset-donut" :style="donutStyle">
+            <div class="asset-donut" role="img" aria-label="추천 원금 45%, 예상 이자 30%, 저축 여력 15%, 안전 여유 10%">
+              <svg class="asset-donut-svg" viewBox="0 0 220 220" aria-hidden="true">
+                <defs>
+                  <filter id="assetDonutShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#1d4ed8" flood-opacity="0.10" />
+                  </filter>
+                </defs>
+                <circle class="asset-donut-track" cx="110" cy="110" r="78" pathLength="100" />
+                <circle
+                  v-for="segment in donutSvgSegments"
+                  :key="segment.label"
+                  class="asset-donut-segment"
+                  cx="110"
+                  cy="110"
+                  r="78"
+                  pathLength="100"
+                  :stroke="segment.color"
+                  :stroke-dasharray="segment.dashArray"
+                  :stroke-dashoffset="segment.dashOffset"
+                />
+              </svg>
               <div class="asset-donut-center">
                 <span>총 예상 만기 자산</span>
                 <strong>{{ formatMoney(maturityAssetAmount) }}</strong>
@@ -329,7 +354,8 @@ onMounted(loadDashboard);
             <div class="donut-legend">
               <span v-for="segment in donutSegments" :key="segment.label">
                 <i :style="{ backgroundColor: segment.color }"></i>
-                {{ segment.label }} {{ segment.value }}%
+                <b>{{ segment.label }}</b>
+                <em>{{ segment.value }}%</em>
               </span>
             </div>
           </div>
@@ -432,99 +458,135 @@ onMounted(loadDashboard);
 .dashboard-asset-layout {
   align-items: center;
   display: grid;
-  gap: 28px;
-  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 32px;
+  grid-template-columns: 270px minmax(0, 1fr);
 }
 
 .asset-donut-area {
   align-items: center;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   justify-content: center;
   min-width: 0;
 }
 
 .asset-donut {
   aspect-ratio: 1 / 1;
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff 0 45%, rgba(239, 246, 255, .86) 46% 58%, transparent 59%),
+    linear-gradient(135deg, rgba(37, 99, 235, .08), rgba(20, 184, 166, .06));
+  box-shadow: inset 0 0 0 1px rgba(226, 235, 247, .72);
   border-radius: 50%;
   flex: 0 0 auto;
   height: auto;
   isolation: isolate;
   position: relative;
-  width: 210px;
+  width: 220px;
 }
 
-.asset-donut::before {
-  border: 1px solid rgba(15, 39, 69, .06);
-  border-radius: 50%;
-  content: "";
+.asset-donut-svg {
+  display: block;
+  filter: url(#assetDonutShadow);
+  height: 100%;
+  position: absolute;
   inset: 0;
-  position: absolute;
-  z-index: 1;
+  transform: rotate(-90deg);
+  width: 100%;
+  z-index: 2;
 }
 
-.asset-donut::after {
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 8px 20px rgba(21, 50, 92, .08), inset 0 0 0 1px rgba(214, 226, 241, .95);
-  content: "";
-  inset: 52px;
-  position: absolute;
-  z-index: 2;
+.asset-donut-track {
+  fill: none;
+  stroke: #eef4fb;
+  stroke-width: 28;
+}
+
+.asset-donut-segment {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 28;
+  transition: stroke-dashoffset .25s ease, opacity .2s ease;
 }
 
 .asset-donut-center {
   align-items: center;
+  background: rgba(255, 255, 255, .94);
+  border: 1px solid rgba(220, 231, 245, .92);
+  border-radius: 50%;
+  box-shadow: 0 14px 28px rgba(15, 39, 72, .08);
   color: #0f2745;
   display: flex;
   flex-direction: column;
-  inset: 52px;
+  inset: 54px;
   justify-content: center;
-  line-height: 1.25;
+  line-height: 1.18;
   position: absolute;
   text-align: center;
   z-index: 3;
 }
 
 .asset-donut-center span {
-  color: #64748b;
-  font-size: .72rem;
+  color: #6b7f99;
+  font-size: .7rem;
   font-weight: 800;
+  letter-spacing: -.01em;
+  margin-bottom: 6px;
 }
 
 .asset-donut-center strong {
-  font-size: 1.17rem;
+  color: #0b2447;
+  font-size: 1.14rem;
+  font-weight: 950;
   letter-spacing: -.045em;
   white-space: nowrap;
 }
 
 .donut-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px 10px;
-  justify-content: center;
-  max-width: 240px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 260px;
+  width: 100%;
 }
 
 .donut-legend span {
   align-items: center;
-  background: #f8fbff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   border: 1px solid #e2eaf5;
-  border-radius: 999px;
-  color: #52657d;
+  border-radius: 12px;
+  box-shadow: 0 6px 14px rgba(30, 64, 112, .04);
+  color: #52647c;
   display: inline-flex;
-  font-size: .72rem;
+  font-size: .71rem;
   font-weight: 850;
-  gap: 5px;
-  padding: 4px 8px;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 9px;
 }
 
 .donut-legend i {
   border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(226, 235, 247, .8);
   display: inline-block;
-  height: 8px;
-  width: 8px;
+  flex: 0 0 auto;
+  height: 9px;
+  width: 9px;
+}
+
+.donut-legend b {
+  color: #47566b;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.donut-legend em {
+  color: #0f2745;
+  font-style: normal;
+  font-weight: 950;
+  margin-left: auto;
 }
 
 .dashboard-asset-info-grid {
@@ -821,12 +883,20 @@ onMounted(loadDashboard);
 
 @media (max-width: 560px) {
   .asset-donut {
-    width: 196px;
+    width: min(220px, 72vw);
   }
 
-  .asset-donut::after,
   .asset-donut-center {
-    inset: 48px;
+    inset: 24%;
+  }
+
+  .asset-donut-center strong {
+    font-size: 1rem;
+  }
+
+  .donut-legend {
+    grid-template-columns: 1fr;
+    max-width: 220px;
   }
 
   .dashboard-asset-info-grid {

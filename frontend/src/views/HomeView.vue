@@ -63,7 +63,7 @@ function openLoanResults() {
         <p class="hero-badge">◆ 오픈 API로 더 투명하고 정확한 비교</p>
         <h1>한눈에 비교하는<br>금융상품</h1>
         <p>예금 · 적금 · 연금저축 · 주택담보대출 · 전세자금대출 · 개인신용대출까지 쉽고 빠르게 비교해보세요.</p>
-        <div class="hero-actions"><RouterLink class="btn primary home-cta" to="/products">상품 비교 시작</RouterLink><RouterLink class="btn ghost home-cta" to="/banks">오픈 API 보기</RouterLink></div>
+        <div class="hero-actions"><RouterLink class="btn primary home-cta" to="/products">전체 상품 보러가기</RouterLink><RouterLink class="btn ghost home-cta" to="/dashboard">맞춤 상품 보러가기</RouterLink></div>
       </div>
       <div class="hero-art" aria-hidden="true">
         <div class="art-chart"><span></span><span></span><span></span><i></i></div><div class="art-bank">⌂</div><div class="art-card">▰</div><div class="art-coins">●<br>●<br>●</div><div class="art-shield">✓</div>

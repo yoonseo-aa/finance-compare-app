@@ -1,9 +1,10 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { apiFetch } from "../api/client";
 import ProductCard from "../components/ProductCard.vue";
+import PageHeader from "../components/PageHeader.vue";
 import StatusBlock from "../components/StatusBlock.vue";
 import { useAuthStore } from "../stores/auth";
 
@@ -40,7 +41,6 @@ const joinedCount = computed(() => joinedProductIds.value.size + joinedLoanCount
 const groupedProducts = computed(() => {
   const groups = new Map();
   const groupByBank = viewMode.value === "bank";
-
   const visibleProducts = focusedBank.value && groupByBank
     ? products.value.filter(product => product.bank_name === focusedBank.value)
     : products.value;
@@ -97,8 +97,8 @@ const groupedSavings = computed(() => {
 const isSavingsGroupFocused = computed(() => Boolean(savingsViewMode.value === "bank" ? focusedSavingsBank.value : focusedSavingsType.value));
 
 function groupIcon(name) {
-  if (name.includes("적금")) return "♧";
-  if (name.includes("예금")) return "◈";
+  if (name.includes("적금")) return "적";
+  if (name.includes("예금")) return "예";
   return name.slice(0, 1);
 }
 
@@ -250,11 +250,13 @@ onMounted(async () => {
 
 <template>
   <main class="container products-page-local">
+    <PageHeader
+      eyebrow="FINPICK RECOMMENDATION"
+      title="금융 상품"
+      description="은행별 필터와 검색으로 상품을 비교합니다."
+    />
     <header class="products-hero-local">
-      <div>
-        <h1>상품</h1>
-        <p>은행별 필터와 검색으로 상품을 비교합니다.</p>
-      </div>
+
       <RouterLink class="interest-link-local" to="/favorites">
         <span aria-hidden="true">☆</span>
         관심 목록
@@ -266,7 +268,7 @@ onMounted(async () => {
       
       <button type="button" :class="{ active: mainProductGroup === 'deposit' }" @click="selectMainGroup('deposit')">▥ 예적금</button>
       <button type="button" :class="{ active: mainProductGroup === 'loan' }" @click="selectMainGroup('loan')">⌂ 대출</button>
-      <button type="button" :class="{ active: mainProductGroup === 'savings' }" @click="selectMainGroup('savings')">◇ 저축상품</button>
+      <button type="button" :class="{ active: mainProductGroup === 'savings' }" @click="selectMainGroup('savings')">◇ 연금저축</button>
     </div>
 
     <form v-if="mainProductGroup === 'deposit'" class="product-filter-local" @submit.prevent="loadProducts">
@@ -275,7 +277,7 @@ onMounted(async () => {
         <input v-model="filters.q" placeholder="상품명 또는 은행명으로 검색하세요">
       </label>
       <label class="product-select-local">
-        <span aria-hidden="true">♜</span>
+        <span aria-hidden="true">▦</span>
         <select v-model="filters.bank" aria-label="은행 선택">
           <option value="">전체 은행</option>
           <option v-for="bank in banks" :key="bank" :value="bank">{{ bank }}</option>
@@ -295,10 +297,10 @@ onMounted(async () => {
       <section class="products-content-local">
         <div class="view-tabs-local" role="tablist" aria-label="상품 보기 방식">
           <button type="button" :class="{ active: viewMode === 'bank' }" @click="viewMode = 'bank'">
-            <span aria-hidden="true">♜</span> 은행별로 보기
+            <span aria-hidden="true">▦</span> 은행별로 보기
           </button>
           <button type="button" :class="{ active: viewMode === 'type' }" @click="viewMode = 'type'">
-            <span aria-hidden="true">◈</span> 상품 유형별 보기
+            <span aria-hidden="true">◇</span> 상품 유형별 보기
           </button>
         </div>
 
@@ -313,8 +315,8 @@ onMounted(async () => {
                 <em>{{ group.items.length }}개 상품</em>
               </div>
               <button v-if="viewMode === 'bank'" class="group-more-local" type="button" @click="toggleBankFocus(group.name)">
-                <template v-if="isBankFocused"><span aria-hidden="true">‹</span> 돌아가기</template>
-                <template v-else>전체 보기 <span aria-hidden="true">›</span></template>
+                <template v-if="isBankFocused">돌아가기</template>
+                <template v-else>전체 보기</template>
               </button>
             </div>
             <div class="product-card-grid-local">
@@ -335,20 +337,6 @@ onMounted(async () => {
           <button class="btn ghost" type="button" @click="resetFilters">필터 초기화</button>
         </section>
       </section>
-
-      <!-- <aside class="product-guide-local">
-        <p class="guide-eyebrow-local">다른 방식으로도 살펴보세요!</p>
-        <h2>상품 유형별로 정리하면<br>더 쉽게 비교할 수 있어요.</h2>
-        <p>원하는 상품 유형만 골라 금리와 가입 조건을 빠르게 비교해보세요.</p>
-        <div class="type-summary-local">
-          <article v-for="type in productTypeCounts" :key="type.name">
-            <span aria-hidden="true">{{ groupIcon(type.name) }}</span>
-            <strong>{{ type.name }}</strong>
-            <em>{{ type.count }}개 상품</em>
-          </article>
-        </div>
-        <button class="btn ghost guide-button-local" type="button" @click="viewMode = 'type'">상품 유형별 보기로 이동 →</button>
-      </aside> -->
     </div>
     <section v-else-if="mainProductGroup === 'loan'" class="loan-results-local">
       <form class="product-filter-local loan-filter-local" @submit.prevent="focusedLoanBank = ''; focusedLoanType = ''; loadLoans()">
@@ -437,7 +425,6 @@ onMounted(async () => {
 .product-search-local > span, .product-select-local > span { color: #3577e9; font-size: 1.25rem; font-weight: 900; }
 .product-search-local input, .product-select-local select { width: 100%; border: 0; outline: 0; background: transparent; color: #1d3657; font: inherit; font-weight: 750; }
 .product-search-submit { min-height: 48px; border-radius: 11px; padding-inline: 1.2rem; }
-.products-layout-local { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 1.6rem; align-items: start; }
 .view-tabs-local { display: grid; grid-template-columns: repeat(2, 1fr); gap: .25rem; border-radius: 12px; background: #edf2f8; padding: .25rem; }
 .view-tabs-local button { min-height: 46px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #526780; cursor: pointer; font-weight: 850; }
 .view-tabs-local button.active { border-color: #9fc1ff; background: #fff; box-shadow: 0 4px 12px rgba(37, 99, 235, .08); color: #196ae9; }
@@ -451,18 +438,7 @@ onMounted(async () => {
 .group-name-local h2 { margin: 0; color: #183250; font-size: 1.22rem; letter-spacing: -.03em; }
 .group-name-local em { border-radius: 999px; background: #edf2f7; color: #61748c; font-size: .76rem; font-style: normal; font-weight: 800; padding: .25rem .5rem; }
 .group-more-local { border: 0; background: transparent; color: #246fe9; cursor: pointer; font-weight: 850; }
-.group-more-local span { font-size: 1.2rem; }
 .product-card-grid-local { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem; }
-.product-guide-local { position: sticky; top: 92px; border: 1px solid #d8e5f3; border-radius: 16px; background: linear-gradient(145deg, #fff, #f3f8ff); box-shadow: 0 10px 24px rgba(29, 55, 88, .05); padding: 1.2rem; }
-.guide-eyebrow-local { margin: 0; color: #176bea; font-size: .82rem; font-weight: 900; }
-.product-guide-local h2 { margin: .5rem 0; color: #183250; font-size: 1.12rem; line-height: 1.45; letter-spacing: -.025em; }
-.product-guide-local > p:not(.guide-eyebrow-local) { color: #6b7d93; font-size: .83rem; line-height: 1.6; }
-.type-summary-local { display: grid; gap: .65rem; margin: 1rem 0; }
-.type-summary-local article { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: .5rem; border: 1px solid #dbe6f3; border-radius: 10px; background: rgba(255,255,255,.82); padding: .7rem; }
-.type-summary-local span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: #dcf5ed; color: #158662; font-weight: 900; }
-.type-summary-local strong { color: #31506c; font-size: .9rem; }
-.type-summary-local em { color: #6a7c92; font-size: .73rem; font-style: normal; }
-.guide-button-local { width: 100%; border-radius: 10px; color: #1b6ce9; font-size: .82rem; }
 .product-empty-local { display: grid; justify-items: center; gap: .5rem; border: 1px dashed #c9d9ec; border-radius: 16px; background: #fff; color: #657991; margin-top: 1.25rem; padding: 3rem 1rem; text-align: center; }
 .product-empty-local > span { color: #2d76ec; font-size: 2rem; }
 .product-empty-local h2 { margin: 0; color: #1d3858; font-size: 1.2rem; }

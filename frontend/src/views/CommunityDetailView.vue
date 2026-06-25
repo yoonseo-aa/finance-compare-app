@@ -10,24 +10,13 @@ const router = useRouter();
 const auth = useAuthStore();
 const community = useCommunityStore();
 const commentContent = ref("");
-const editingCommentId = ref(null);
-const editingContent = ref("");
 
 const post = computed(() => community.getPostById(route.params.id));
-const canComment = computed(() => auth.isAuthenticated || Boolean(localStorage.getItem("finpick-token")));
+const canComment = computed(() => auth.isAuthenticated);
 const commentAuthor = computed(() => {
   const user = auth.user || {};
   return user.display_name || user.nickname || user.username || user.email || "FinPick 사용자";
 });
-const currentUserKey = computed(() => {
-  const user = auth.user || {};
-  return String(user.id || user.pk || user.username || user.email || user.display_name || user.nickname || localStorage.getItem("finpick-token") || "");
-});
-const commentProfileImage = computed(() => {
-  const user = auth.user || {};
-  return user.profile_image || user.profileImage || user.avatar_url || user.avatar || "";
-});
-const commentProfileInitial = computed(() => commentAuthor.value.charAt(0));
 
 onMounted(async () => {
   if (!auth.user && localStorage.getItem("finpick-token")) {
@@ -61,38 +50,9 @@ function submitComment() {
 
   community.addComment(post.value.id, {
     author: commentAuthor.value,
-    userKey: currentUserKey.value,
-    profileImage: commentProfileImage.value,
     content
   });
   commentContent.value = "";
-}
-
-function isMyComment(comment) {
-  return canComment.value && comment.userKey && comment.userKey === currentUserKey.value;
-}
-
-function startEditComment(comment) {
-  editingCommentId.value = comment.id;
-  editingContent.value = comment.content;
-}
-
-function cancelEditComment() {
-  editingCommentId.value = null;
-  editingContent.value = "";
-}
-
-function submitEditComment(comment) {
-  const content = editingContent.value.trim();
-  if (!post.value || !content) return;
-  community.updateComment(post.value.id, comment.id, content);
-  cancelEditComment();
-}
-
-function deleteComment(comment) {
-  if (!post.value) return;
-  community.deleteComment(post.value.id, comment.id);
-  if (editingCommentId.value === comment.id) cancelEditComment();
 }
 </script>
 
@@ -144,10 +104,7 @@ function deleteComment(comment) {
       </div>
 
       <form v-if="canComment" class="comment-composer" @submit.prevent="submitComment">
-        <span class="comment-profile composer-profile" aria-hidden="true">
-          <img v-if="commentProfileImage" :src="commentProfileImage" alt="">
-          <span v-else>{{ commentProfileInitial }}</span>
-        </span>
+        <span class="comment-avatar" aria-hidden="true">●</span>
         <input
           v-model="commentContent"
           type="text"
@@ -170,32 +127,12 @@ function deleteComment(comment) {
         <article v-for="comment in post.commentList" :key="comment.id" class="comment-card-local">
           <div class="comment-card-head">
             <div class="comment-author">
-              <span class="comment-profile" aria-hidden="true">
-                <img v-if="comment.profileImage" :src="comment.profileImage" alt="">
-                <span v-else>{{ comment.author.charAt(0) }}</span>
-              </span>
+              <span class="comment-profile" aria-hidden="true">{{ comment.author.charAt(0) }}</span>
               <strong>{{ comment.author }}</strong>
-              <small v-if="comment.updatedAt">{{ comment.updatedAt }}</small>
             </div>
-            <div class="comment-side">
-              <span>{{ comment.createdAt }}</span>
-              <span v-if="isMyComment(comment)" class="comment-actions">
-                <button type="button" @click="startEditComment(comment)">수정</button>
-                <button type="button" @click="deleteComment(comment)">삭제</button>
-              </span>
-            </div>
+            <span>{{ comment.createdAt }}</span>
           </div>
-
-          <form
-            v-if="editingCommentId === comment.id"
-            class="comment-edit-form"
-            @submit.prevent="submitEditComment(comment)"
-          >
-            <input v-model="editingContent" type="text" aria-label="댓글 수정 내용">
-            <button type="submit" :disabled="!editingContent.trim()">저장</button>
-            <button type="button" @click="cancelEditComment">취소</button>
-          </form>
-          <p v-else>{{ comment.content }}</p>
+          <p>{{ comment.content }}</p>
         </article>
       </div>
     </section>
@@ -299,7 +236,7 @@ function deleteComment(comment) {
   gap: .75rem;
 }
 
-.detail-title-block h2 {
+.detail-title-block h1 {
   max-width: 920px;
   margin: 0;
   color: var(--detail-ink);
@@ -488,75 +425,10 @@ function deleteComment(comment) {
   font-weight: 700;
 }
 
-
-.comment-side {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: .65rem;
-}
-
-.comment-actions {
-  display: inline-flex;
-  gap: .35rem;
-}
-
-.comment-actions button,
-.comment-edit-form button {
-  border: 1px solid var(--detail-line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--detail-muted);
-  padding: .28rem .5rem;
-  font-size: .82rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.comment-actions button:hover,
-.comment-edit-form button:hover:not(:disabled) {
-  border-color: #c8d8ee;
-  background: #f8fbff;
-  color: var(--detail-blue);
-}
-
-.comment-edit-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: .45rem;
-  align-items: center;
-}
-
-.comment-edit-form input {
-  width: 100%;
-  min-height: 36px;
-  border: 1px solid var(--detail-line);
-  border-radius: 10px;
-  padding: 0 .75rem;
-  color: var(--detail-ink);
-  font-weight: 700;
-  outline: none;
-}
-
-.comment-edit-form input:focus {
-  border-color: rgba(49, 130, 246, .45);
-  box-shadow: 0 0 0 3px rgba(49, 130, 246, .1);
-}
-
-.comment-edit-form button:disabled {
-  opacity: .45;
-  cursor: not-allowed;
-}
 .comment-author {
   display: inline-flex;
   align-items: center;
   gap: .45rem;
-}
-
-.comment-author small {
-  color: #a0a8b5;
-  font-size: .78rem;
-  font-weight: 800;
 }
 
 .comment-profile {
@@ -570,18 +442,6 @@ function deleteComment(comment) {
   color: #536176;
   font-size: .82rem;
   font-weight: 900;
-  overflow: hidden;
-}
-
-.comment-profile img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.composer-profile {
-  background: #eef1f5;
-  color: #536176;
 }
 
 .comment-card-local strong {
@@ -616,12 +476,6 @@ function deleteComment(comment) {
   .comment-composer {
     grid-template-columns: 28px minmax(0, 1fr) auto;
   }
-
-  .comment-edit-form {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
-
-
 

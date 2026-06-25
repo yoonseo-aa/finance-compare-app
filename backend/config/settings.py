@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "core",
+    "chatbot",
 ]
 
 MIDDLEWARE = [
@@ -80,6 +81,8 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
@@ -91,3 +94,16 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.AllowAny",
     ],
 }
+
+
+GMS_API_KEY = os.getenv("GMS_API_KEY", "").strip()
+GMS_OPENAI_BASE_URL = os.getenv("GMS_OPENAI_BASE_URL", "").strip() or "https://gms.ssafy.io/gmsapi/api.openai.com/v1"
+GMS_OPENAI_MODEL = os.getenv("GMS_OPENAI_MODEL", "").strip() or "gpt-5.4-mini"
+_RAW_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+_RAW_OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "").strip()
+OPENAI_API_KEY = GMS_API_KEY or _RAW_OPENAI_API_KEY
+OPENAI_BASE_URL = GMS_OPENAI_BASE_URL if GMS_API_KEY else (_RAW_OPENAI_BASE_URL or "https://api.openai.com/v1")
+OPENAI_CHAT_MODEL = GMS_OPENAI_MODEL if GMS_API_KEY else (os.getenv("OPENAI_CHAT_MODEL", "").strip() or "gpt-5.4-mini")
+OPENAI_CHAT_FALLBACK_MODEL = os.getenv("OPENAI_CHAT_FALLBACK_MODEL", "").strip() or "gpt-5.4-nano"
+CHATBOT_TIMEOUT_SECONDS = int(os.getenv("CHATBOT_TIMEOUT_SECONDS", "8"))
+CHATBOT_MAX_TOKENS = int(os.getenv("CHATBOT_MAX_TOKENS", "420"))

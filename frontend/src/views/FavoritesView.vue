@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 
 import { apiFetch } from "../api/client";
+import PageHeader from "../components/PageHeader.vue";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
@@ -66,11 +67,11 @@ onMounted(async () => {
 <template>
   <main class="container favorites-page-local">
     <section class="favorites-hero-local">
-      <div>
-        <span>MY FINPICK</span>
-        <h1>관심 목록</h1>
-        <p>관심 목록에 추가한 예적금·대출 상품을 한곳에서 확인합니다.</p>
-      </div>
+      <PageHeader
+        eyebrow="MY FINPICK"
+        title="관심 목록"
+        description="관심 목록에 추가한 예적금·대출·저축 상품을 한곳에서 확인합니다."
+      />
       <RouterLink class="btn ghost" to="/products">상품 둘러보기</RouterLink>
     </section>
 
@@ -96,7 +97,7 @@ onMounted(async () => {
     <section v-else class="favorites-empty-local">
       <span aria-hidden="true">♡</span>
       <h2>아직 관심 상품이 없습니다.</h2>
-      <p>마음에 드는 예적금·대출 상품을 관심 목록에 추가해보세요.</p>
+      <p>마음에 드는 예적금·대출·저축 상품을 관심 목록에 추가해보세요.</p>
       <RouterLink class="btn primary" to="/products">상품 둘러보기</RouterLink>
     </section>
   </main>

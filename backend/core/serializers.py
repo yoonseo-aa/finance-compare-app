@@ -1,4 +1,4 @@
-﻿from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate
 from rest_framework import serializers
 
 from .models import Comment, FavoriteLoan, FavoriteSavings, FinancialProduct, Post, RateOption, User
@@ -82,6 +82,7 @@ class FavoriteSavingsSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     display_name = serializers.CharField(read_only=True)
+    profile_image = serializers.SerializerMethodField()
     has_usable_password = serializers.SerializerMethodField()
     joined_products = ProductListSerializer(many=True, read_only=True)
     joined_loans = FavoriteLoanSerializer(many=True, read_only=True)
@@ -95,6 +96,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email",
             "nickname",
             "display_name",
+            "profile_image",
             "has_usable_password",
             "age",
             "age_group",
@@ -113,6 +115,13 @@ class UserSerializer(serializers.ModelSerializer):
             "joined_loans",
             "joined_savings",
         )
+
+    def get_profile_image(self, obj):
+        if not obj.profile_image:
+            return ""
+        request = self.context.get("request")
+        url = obj.profile_image.url
+        return request.build_absolute_uri(url) if request else url
 
     def get_has_usable_password(self, obj):
         return obj.has_usable_password()
@@ -154,6 +163,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         fields = (
             "email",
             "nickname",
+            "profile_image",
             "age",
             "age_group",
             "marital_status",
@@ -209,6 +219,3 @@ class PostSerializer(serializers.ModelSerializer):
     def get_is_owner(self, obj):
         request = self.context.get("request")
         return bool(request and request.user.is_authenticated and obj.author_id == request.user.id)
-
-
-
