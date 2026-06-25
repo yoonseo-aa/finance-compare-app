@@ -2345,7 +2345,7 @@ onMounted(async () => {
   font-weight: 750;
   line-height: 1.5;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  /* -webkit-line-clamp: 2; */
 }
 
 .ai-tags-local {
