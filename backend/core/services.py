@@ -179,6 +179,50 @@ SPOT_API_SYMBOLS = {
     "silver": "SI=F",
 }
 SPOT_API_SOURCE = "Yahoo Finance API"
+TROY_OUNCE_GRAMS = 31.1034768
+DON_GRAMS = 3.75
+
+@lru_cache(maxsize=8)
+def fetch_usd_krw_rate(cache_bucket):
+    url = "https://query1.finance.yahoo.com/v8/finance/chart/USDKRW=X"
+    response = requests.get(
+        url,
+        params={"range": "5d", "interval": "1d", "includePrePost": "false"},
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=8,
+    )
+    response.raise_for_status()
+    result = ((response.json().get("chart") or {}).get("result") or [None])[0]
+    if not result:
+        raise requests.RequestException("환율 데이터를 찾지 못했습니다.")
+    closes = (((result.get("indicators") or {}).get("quote") or [{}])[0]).get("close") or []
+    rates = [float(value) for value in closes if value]
+    if not rates:
+        raise requests.RequestException("환율 종가가 없습니다.")
+    return round(rates[-1], 4)
+
+
+def add_krw_units(rows, exchange_rate):
+    converted = []
+    for row in rows:
+        next_row = dict(row)
+        for source_key, target_key in (
+            ("price", "krw_price"),
+            ("open", "krw_open"),
+            ("high", "krw_high"),
+            ("low", "krw_low"),
+        ):
+            usd_oz = row.get(source_key)
+            if usd_oz is None:
+                continue
+            krw_oz = float(usd_oz) * exchange_rate
+            next_row[target_key] = round(krw_oz / TROY_OUNCE_GRAMS)
+        if "krw_price" in next_row:
+            next_row["krw_per_gram"] = next_row["krw_price"]
+            next_row["krw_per_don"] = round(next_row["krw_price"] * DON_GRAMS)
+            next_row["krw_per_oz"] = round(float(row["price"]) * exchange_rate)
+        converted.append(next_row)
+    return converted
 
 def fetch_api_spot_prices(asset, cache_bucket):
     symbol = SPOT_API_SYMBOLS.get(asset, SPOT_API_SYMBOLS["gold"])
@@ -230,10 +274,15 @@ def load_spot_price_data(asset):
     symbol = SPOT_API_SYMBOLS.get(asset, SPOT_API_SYMBOLS["gold"])
     try:
         rows = fetch_api_spot_prices(asset, cache_bucket)
+        exchange_rate = fetch_usd_krw_rate(cache_bucket)
         return {
-            "rows": rows,
+            "rows": add_krw_units(rows, exchange_rate),
             "source": SPOT_API_SOURCE,
             "symbol": symbol,
+            "exchange_rate": exchange_rate,
+            "currency": "KRW",
+            "unit": "원/g",
+            "units": {"gram": "원/g", "don": "원/돈", "oz": "원/oz"},
             "is_live": bool(rows),
             "error": "" if rows else "API에서 시세 데이터를 가져오지 못했습니다.",
         }
@@ -242,8 +291,12 @@ def load_spot_price_data(asset):
             "rows": [],
             "source": SPOT_API_SOURCE,
             "symbol": symbol,
+            "exchange_rate": None,
+            "currency": "KRW",
+            "unit": "원/g",
+            "units": {"gram": "원/g", "don": "원/돈", "oz": "원/oz"},
             "is_live": False,
-            "error": "Yahoo Finance API에서 시세 데이터를 가져오지 못했습니다.",
+            "error": "시세 정보를 불러오지 못했습니다.",
         }
 
 
@@ -341,6 +394,8 @@ def recommend_news_with_ai(query, articles):
         return (selected or fallback), bool(selected)
     except (requests.RequestException, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError):
         return fallback, False
+
+
 
 
 

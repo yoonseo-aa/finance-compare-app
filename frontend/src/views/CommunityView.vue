@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 
 import { communityCategories, useCommunityStore } from "../stores/community";
+import PageHeader from "../components/PageHeader.vue";
 
 const community = useCommunityStore();
 const activeCategory = ref("전체");
@@ -26,11 +27,11 @@ const popularPosts = computed(() => community.popularPosts);
 <template>
   <main class="container community-page">
     <section class="community-hero">
-      <div class="community-title-block">
-        <span class="page-kicker">FinPick 라운지</span>
-        <h1>커뮤니티</h1>
-        <p>금융 상품 후기와 재테크 고민을 함께 나눠보세요.</p>
-      </div>
+      <PageHeader
+        eyebrow="FINPICK LOUNGE"
+        title="커뮤니티"
+        description="금융 상품 후기와 재테크 고민을 함께 나눠보세요."
+      />
       <RouterLink class="btn primary write-button" to="/community/write">글쓰기</RouterLink>
     </section>
 
@@ -513,3 +514,5 @@ const popularPosts = computed(() => community.popularPosts);
   }
 }
 </style>
+
+

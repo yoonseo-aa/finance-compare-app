@@ -1,8 +1,9 @@
-﻿<script setup>
+<script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 
 import { apiFetch, getToken } from "../api/client";
 import StatusBlock from "../components/StatusBlock.vue";
+import PageHeader from "../components/PageHeader.vue";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
@@ -334,12 +335,12 @@ onMounted(async () => {
 <template>
   <main class="recommend-page-local">
     <section class="container recommend-container-local">
-      <div class="section-head recommend-head-local">
-        <div>
-          <!-- <p class="eyebrow">FinPick recommendation</p> -->
-          <h1>예적금 추천</h1>
-          <p>금리만 높은 상품이 아니라, 내 조건에서 실제로 유리한 예적금 상품을 비교합니다.</p>
-        </div>
+      <div class="recommend-head-local unified-head-with-actions">
+        <PageHeader
+          eyebrow="FINPICK RECOMMENDATION"
+          title="추천 결과"
+          description="금리만 높은 상품이 아니라, 내 조건에서 실제로 유리한 예적금 상품을 비교합니다."
+        />
         <div class="head-actions-local">
           <RouterLink class="btn primary" to="/recommend-profile">나의 정보 입력하기</RouterLink>
           <RouterLink class="btn ghost" to="/products">전체 상품 보기</RouterLink>
@@ -1440,3 +1441,4 @@ onMounted(async () => {
   }
 }
 </style>
+

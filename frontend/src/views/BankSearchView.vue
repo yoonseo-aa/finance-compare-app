@@ -2,19 +2,25 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 
 import { apiFetch } from "../api/client";
+import PageHeader from "../components/PageHeader.vue";
 
 const kakaoKey = ref("");
 const message = ref("");
+const locationNotice = ref("");
 const loading = ref(true);
 const mapEl = ref(null);
 const banks = ref([]);
 const activeBankId = ref("");
 const currentAddress = ref("현재 위치를 확인하는 중입니다.");
+const searchKeyword = ref("");
 
 let map = null;
 let places = null;
 let geocoder = null;
 let currentMarker = null;
+let infoWindow = null;
+let idleTimer = null;
+let suppressIdleSearch = false;
 let bankMarkers = new Map();
 const fallbackLocation = { lat: 37.5012743, lng: 127.039585 };
 let currentLocation = { ...fallbackLocation };
@@ -44,12 +50,11 @@ function loadKakaoScript(key) {
 
 function markerImage(active = false) {
   const kakao = window.kakao;
-  const fill = active ? "#1d6ff2" : "#14a38b";
+  const fill = active ? "#2f80ed" : "#12a594";
   const stroke = active ? "#dbeafe" : "#dff8f3";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="50" viewBox="0 0 42 50"><path fill="${fill}" stroke="${stroke}" stroke-width="4" d="M21 3C11.1 3 3 10.9 3 20.7c0 12.8 18 26.3 18 26.3s18-13.5 18-26.3C39 10.9 30.9 3 21 3Z"/><path fill="#fff" d="M12 19.5 21 14l9 5.5v2H12v-2Zm2 3h3v7h-3v-7Zm5 0h4v7h-4v-7Zm6 0h3v7h-3v-7ZM12 31h18v2H12v-2Z"/></svg>`;
-  const imageSrc = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
   return new kakao.maps.MarkerImage(
-    imageSrc,
+    `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
     new kakao.maps.Size(42, 50),
     { offset: new kakao.maps.Point(21, 48) }
   );
@@ -57,17 +62,18 @@ function markerImage(active = false) {
 
 function currentMarkerImage() {
   const kakao = window.kakao;
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="12" fill="#3182f6" opacity=".18"/><circle cx="15" cy="15" r="7" fill="#3182f6" stroke="#fff" stroke-width="3"/></svg>';
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="15" fill="#2f80ed" opacity=".16"/><circle cx="17" cy="17" r="8" fill="#2f80ed" stroke="#fff" stroke-width="4"/></svg>';
   return new kakao.maps.MarkerImage(
     `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    new kakao.maps.Size(30, 30),
-    { offset: new kakao.maps.Point(15, 15) }
+    new kakao.maps.Size(34, 34),
+    { offset: new kakao.maps.Point(17, 17) }
   );
 }
 
 function clearMarkers() {
   bankMarkers.forEach(marker => marker.setMap(null));
   bankMarkers = new Map();
+  infoWindow?.close();
 }
 
 function updateMarkerState() {
@@ -77,16 +83,49 @@ function updateMarkerState() {
   });
 }
 
+function bankDistance(bank) {
+  if (bank.distance) return Number(bank.distance);
+  const lat1 = currentLocation.lat;
+  const lng1 = currentLocation.lng;
+  const lat2 = Number(bank.y);
+  const lng2 = Number(bank.x);
+  if ([lat1, lng1, lat2, lng2].some(value => Number.isNaN(value))) return null;
+  const toRad = value => value * Math.PI / 180;
+  const earth = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(earth * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function formatDistance(bank) {
+  const distance = bankDistance(bank);
+  if (!distance) return "거리 정보 없음";
+  if (distance >= 1000) return `${(distance / 1000).toFixed(1)}km`;
+  return `${distance.toLocaleString()}m`;
+}
+
+function openInfoWindow(bank, marker) {
+  if (!infoWindow || !map || !marker) return;
+  const address = bank.road_address_name || bank.address_name || "주소 정보 없음";
+  const phone = bank.phone ? `<small>${bank.phone}</small>` : "";
+  infoWindow.setContent(`<div style="min-width:190px;padding:10px 12px;color:#10233f;font-weight:800;"><strong style="display:block;margin-bottom:4px;">${bank.place_name}</strong><span style="display:block;color:#6b7a90;font-size:12px;line-height:1.45;">${address}</span>${phone}</div>`);
+  infoWindow.open(map, marker);
+}
+
 function selectBank(bankId, shouldPan = true) {
   const bank = banks.value.find(item => item._id === bankId);
-  if (!bank || !map) return;
+  const marker = bankMarkers.get(bankId);
+  if (!bank || !map || !marker) return;
 
   activeBankId.value = bankId;
   updateMarkerState();
+  openInfoWindow(bank, marker);
 
   if (shouldPan) {
-    const kakao = window.kakao;
-    map.panTo(new kakao.maps.LatLng(Number(bank.y), Number(bank.x)));
+    suppressIdleSearch = true;
+    map.panTo(new window.kakao.maps.LatLng(Number(bank.y), Number(bank.x)));
+    setTimeout(() => { suppressIdleSearch = false; }, 600);
   }
 }
 
@@ -95,26 +134,26 @@ function renderCurrentMarker(position) {
   const latLng = new kakao.maps.LatLng(position.lat, position.lng);
 
   if (currentMarker) currentMarker.setMap(null);
-  currentMarker = new kakao.maps.Marker({
-    map,
-    position: latLng,
-    image: currentMarkerImage(),
-    zIndex: 30
-  });
+  currentMarker = new kakao.maps.Marker({ map, position: latLng, image: currentMarkerImage(), zIndex: 30 });
 }
 
-function renderBanks(data) {
+function renderBanks(data, fitBounds = false, emptyText = "검색 결과가 없습니다.") {
   const kakao = window.kakao;
   clearMarkers();
 
-  banks.value = data.slice(0, 18).map((bank, index) => ({
-    ...bank,
-    _id: bank.id || `${bank.x}-${bank.y}-${index}`
-  }));
+  const seen = new Set();
+  banks.value = data
+    .map((bank, index) => ({ ...bank, _id: bank.id || `${bank.x}-${bank.y}-${index}` }))
+    .filter(bank => {
+      if (seen.has(bank._id)) return false;
+      seen.add(bank._id);
+      return true;
+    })
+    .sort((a, b) => (bankDistance(a) || 9999999) - (bankDistance(b) || 9999999));
 
   if (!banks.value.length) {
     activeBankId.value = "";
-    message.value = "현재 위치 주변에서 은행을 찾지 못했습니다.";
+    message.value = emptyText;
     return;
   }
 
@@ -124,25 +163,22 @@ function renderBanks(data) {
 
   banks.value.forEach(bank => {
     const position = new kakao.maps.LatLng(Number(bank.y), Number(bank.x));
-    const marker = new kakao.maps.Marker({
-      map,
-      position,
-      image: markerImage(false),
-      zIndex: 10
-    });
-
+    const marker = new kakao.maps.Marker({ map, position, image: markerImage(false), zIndex: 10 });
     bankMarkers.set(bank._id, marker);
     bounds.extend(position);
     kakao.maps.event.addListener(marker, "click", () => selectBank(bank._id));
   });
 
-  map.setBounds(bounds, 64, 64, 64, 64);
+  if (fitBounds) {
+    suppressIdleSearch = true;
+    map.setBounds(bounds, 64, 64, 64, 64);
+    setTimeout(() => { suppressIdleSearch = false; }, 700);
+  }
   selectBank(banks.value[0]._id, false);
 }
 
 function updateCurrentAddress(position) {
   if (!geocoder) return;
-
   geocoder.coord2Address(position.lng, position.lat, (result, status) => {
     if (status === window.kakao.maps.services.Status.OK && result.length) {
       currentAddress.value = result[0].road_address?.address_name || result[0].address.address_name;
@@ -155,17 +191,18 @@ function updateCurrentAddress(position) {
 function getCurrentPosition() {
   return new Promise(resolve => {
     if (!navigator.geolocation) {
-      message.value = "브라우저에서 현재 위치를 사용할 수 없어 기본 위치 기준으로 보여드립니다.";
+      locationNotice.value = "브라우저에서 현재 위치를 사용할 수 없어 기본 위치 기준으로 보여드립니다.";
       resolve({ ...fallbackLocation });
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       position => {
+        locationNotice.value = "";
         resolve({ lat: position.coords.latitude, lng: position.coords.longitude });
       },
       () => {
-        message.value = "현재 위치 권한을 허용하면 주변 은행을 더 정확하게 볼 수 있습니다. 지금은 기본 위치 기준입니다.";
+        locationNotice.value = "현재 위치 권한을 허용하면 주변 은행을 더 정확하게 볼 수 있습니다. 지금은 기본 위치 기준입니다.";
         resolve({ ...fallbackLocation });
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
@@ -173,34 +210,65 @@ function getCurrentPosition() {
   });
 }
 
-function searchNearbyBanks() {
-  if (!places || !map) return;
+function keywordSearchAll(keyword, options = {}, maxResults = 45) {
+  return new Promise(resolve => {
+    const collected = [];
+    const callback = (data, status, pagination) => {
+      if (status !== window.kakao.maps.services.Status.OK) {
+        resolve(collected);
+        return;
+      }
+      collected.push(...data);
+      if (pagination?.hasNextPage && collected.length < maxResults) {
+        pagination.nextPage();
+        return;
+      }
+      resolve(collected.slice(0, maxResults));
+    };
+    places.keywordSearch(keyword, callback, options);
+  });
+}
 
+async function searchNearbyBanks(fitBounds = true) {
+  if (!places || !map) return;
+  loading.value = true;
   const kakao = window.kakao;
   const center = new kakao.maps.LatLng(currentLocation.lat, currentLocation.lng);
   map.setCenter(center);
   renderCurrentMarker(currentLocation);
   updateCurrentAddress(currentLocation);
+  const data = await keywordSearchAll("은행", { location: center, radius: 3000, sort: kakao.maps.services.SortBy.DISTANCE });
+  loading.value = false;
+  renderBanks(data, fitBounds, "현재 위치 주변 검색 결과가 없습니다.");
+}
 
-  places.keywordSearch("은행", (data, status) => {
-    loading.value = false;
-    if (status === kakao.maps.services.Status.OK) {
-      renderBanks(data);
-      return;
-    }
-    renderBanks([]);
-  }, {
-    location: center,
-    radius: 2500,
-    sort: kakao.maps.services.SortBy.DISTANCE
-  });
+async function searchByKeyword(fitBounds = true) {
+  if (!places || !map) return;
+  const keyword = searchKeyword.value.trim();
+  if (!keyword) {
+    await searchNearbyBanks(fitBounds);
+    return;
+  }
+  loading.value = true;
+  const data = await keywordSearchAll(keyword, { sort: window.kakao.maps.services.SortBy.ACCURACY });
+  loading.value = false;
+  renderBanks(data, fitBounds, "검색 결과가 없습니다.");
+}
+
+async function searchCurrentMapArea() {
+  if (!places || !map) return;
+  loading.value = true;
+  const keyword = searchKeyword.value.trim() || "은행";
+  const data = await keywordSearchAll(keyword, { bounds: map.getBounds() });
+  loading.value = false;
+  renderBanks(data, false, "현재 지도 영역에 검색 결과가 없습니다.");
 }
 
 async function refreshCurrentLocation() {
   loading.value = true;
   currentAddress.value = "현재 위치를 확인하는 중입니다.";
   currentLocation = await getCurrentPosition();
-  searchNearbyBanks();
+  await searchNearbyBanks(true);
 }
 
 onMounted(async () => {
@@ -218,14 +286,17 @@ onMounted(async () => {
 
     const kakao = window.kakao;
     currentLocation = await getCurrentPosition();
-    map = new kakao.maps.Map(mapEl.value, {
-      center: new kakao.maps.LatLng(currentLocation.lat, currentLocation.lng),
-      level: 4
-    });
+    map = new kakao.maps.Map(mapEl.value, { center: new kakao.maps.LatLng(currentLocation.lat, currentLocation.lng), level: 4 });
     map.setZoomable(true);
     geocoder = new kakao.maps.services.Geocoder();
     places = new kakao.maps.services.Places();
-    searchNearbyBanks();
+    infoWindow = new kakao.maps.InfoWindow({ zIndex: 40 });
+    kakao.maps.event.addListener(map, "idle", () => {
+      if (suppressIdleSearch) return;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(searchCurrentMapArea, 450);
+    });
+    await searchNearbyBanks(true);
   } catch (err) {
     loading.value = false;
     const origin = window.location.origin;
@@ -234,8 +305,10 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  clearTimeout(idleTimer);
   clearMarkers();
   if (currentMarker) currentMarker.setMap(null);
+  infoWindow?.close();
 });
 </script>
 
@@ -243,22 +316,32 @@ onBeforeUnmount(() => {
   <main class="bank-page">
     <section class="bank-page-head">
       <div>
-        <span class="page-kicker">Nearby banks</span>
-        <h1>근처 은행 찾기</h1>
-        <p>{{ currentAddress }}</p>
+        <PageHeader
+          eyebrow="FINANCIAL COMPANY"
+          title="은행찾기"
+          description="현재 위치와 검색어를 기준으로 가까운 은행 지점을 지도에서 확인합니다."
+        />
+        <p class="bank-current-address">{{ currentAddress }}</p>
       </div>
       <button class="btn primary locate-button" type="button" @click="refreshCurrentLocation">
-        현재 위치 새로고침
+        현재 위치로 이동
       </button>
     </section>
 
+    <form class="bank-search-bar" @submit.prevent="searchByKeyword(true)">
+      <input v-model="searchKeyword" placeholder="지역명, 은행명, 지점명 검색 예: 강남역 국민은행">
+      <button class="btn primary" type="submit">검색</button>
+      <button class="btn ghost" type="button" @click="searchCurrentMapArea">현 지도에서 검색</button>
+    </form>
+
+    <p v-if="locationNotice" class="status-block warning bank-message">{{ locationNotice }}</p>
     <p v-if="message" class="status-block warning bank-message">{{ message }}</p>
 
     <section class="bank-map-shell">
       <div class="bank-map-card">
         <div ref="mapEl" class="bank-map-box">
           <div v-if="!kakaoKey || loading" class="map-placeholder">
-            {{ loading ? "주변 은행을 찾는 중입니다." : "Kakao 지도 영역" }}
+            {{ loading ? "은행을 찾는 중입니다." : "Kakao 지도 영역" }}
           </div>
         </div>
       </div>
@@ -266,30 +349,26 @@ onBeforeUnmount(() => {
       <aside class="bank-list-panel">
         <div class="bank-list-head">
           <div>
-            <h2>주변 은행</h2>
-            <p>가까운 순서로 최대 {{ banks.length }}개를 보여줍니다.</p>
+            <h2>검색 결과</h2>
+            <p>지도와 목록이 함께 갱신됩니다.</p>
           </div>
           <span>{{ banks.length }}곳</span>
         </div>
 
-        <ul class="bank-result-list" aria-label="주변 은행 목록">
+        <ul class="bank-result-list" aria-label="은행 검색 결과 목록">
           <li v-for="bank in banks" :key="bank._id">
-            <button
-              class="bank-result-card"
-              :class="{ active: activeBankId === bank._id }"
-              type="button"
-              @click="selectBank(bank._id)"
-            >
+            <button class="bank-result-card" :class="{ active: activeBankId === bank._id }" type="button" @click="selectBank(bank._id)">
               <span class="bank-icon" aria-hidden="true">{{ activeBankId === bank._id ? "●" : "○" }}</span>
               <span class="bank-copy">
                 <strong>{{ bank.place_name }}</strong>
-                <small>{{ bank.road_address_name || bank.address_name }}</small>
-                <em v-if="bank.distance">현재 위치에서 {{ Number(bank.distance).toLocaleString() }}m</em>
+                <small>{{ bank.road_address_name || bank.address_name || '주소 정보 없음' }}</small>
+                <em>{{ formatDistance(bank) }}</em>
+                <small v-if="bank.phone">{{ bank.phone }}</small>
               </span>
             </button>
           </li>
           <li v-if="!banks.length" class="empty-bank-list">
-            {{ loading ? "은행 목록을 불러오고 있습니다." : "표시할 은행이 없습니다." }}
+            {{ loading ? "은행 목록을 불러오고 있습니다." : "검색 결과가 없습니다." }}
           </li>
         </ul>
       </aside>
@@ -302,12 +381,11 @@ onBeforeUnmount(() => {
   --bank-ink: #172033;
   --bank-muted: #6f7c90;
   --bank-line: #dce7f2;
-  --bank-blue: #3182f6;
+  --bank-blue: #2f80ed;
   --bank-mint: #12a594;
-  --bank-soft: #f5f8fc;
   width: min(1180px, calc(100% - 2rem));
   height: calc(100vh - 72px);
-  min-height: 640px;
+  min-height: 680px;
   margin: 0 auto;
   padding: 1.25rem 0;
   overflow: hidden;
@@ -316,7 +394,8 @@ onBeforeUnmount(() => {
   gap: .85rem;
 }
 
-.bank-page-head {
+.bank-page-head,
+.bank-search-bar {
   display: flex;
   align-items: end;
   justify-content: space-between;
@@ -343,12 +422,43 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.locate-button {
+.locate-button,
+.bank-search-bar .btn {
   min-height: 44px;
-  border: 0;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--bank-blue), var(--bank-mint));
   white-space: nowrap;
+}
+
+.locate-button {
+  border: 0;
+  background: linear-gradient(135deg, var(--bank-blue), var(--bank-mint));
+}
+
+.bank-search-bar {
+  align-items: center;
+  border: 1px solid var(--bank-line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(31, 44, 71, .06);
+  padding: .7rem;
+}
+
+.bank-search-bar input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #dbe7f5;
+  border-radius: 12px;
+  color: var(--bank-ink);
+  font: inherit;
+  font-weight: 800;
+  padding: 0 .9rem;
+  outline: none;
+}
+
+.bank-search-bar input:focus {
+  border-color: rgba(47, 128, 237, .45);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, .1);
 }
 
 .bank-message {
@@ -360,7 +470,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 1rem;
   align-items: stretch;
 }
@@ -445,7 +555,7 @@ onBeforeUnmount(() => {
   padding: 0 .2rem 0 0;
   display: grid;
   gap: .62rem;
-  max-height: calc((88px * 6) + (0.62rem * 5));
+  max-height: calc((104px * 6) + (0.62rem * 5));
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -461,7 +571,7 @@ onBeforeUnmount(() => {
 
 .bank-result-card {
   width: 100%;
-  min-height: 88px;
+  min-height: 104px;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
   gap: .7rem;
@@ -482,9 +592,9 @@ onBeforeUnmount(() => {
 }
 
 .bank-result-card.active {
-  border-color: rgba(49, 130, 246, .32);
+  border-color: rgba(47, 128, 237, .35);
   background: #f2f7ff;
-  box-shadow: 0 10px 24px rgba(49, 130, 246, .12);
+  box-shadow: 0 10px 24px rgba(47, 128, 237, .12);
 }
 
 .bank-icon {
@@ -545,6 +655,7 @@ onBeforeUnmount(() => {
   }
 
   .bank-page-head,
+  .bank-search-bar,
   .bank-map-shell {
     display: grid;
   }
@@ -558,7 +669,7 @@ onBeforeUnmount(() => {
   }
 
   .bank-result-list {
-    max-height: 390px;
+    max-height: 520px;
   }
 }
 
@@ -568,7 +679,8 @@ onBeforeUnmount(() => {
     padding-top: 1rem;
   }
 
-  .locate-button {
+  .locate-button,
+  .bank-search-bar .btn {
     width: 100%;
   }
 
@@ -577,3 +689,8 @@ onBeforeUnmount(() => {
   }
 }
 </style>
+
+
+
+
+

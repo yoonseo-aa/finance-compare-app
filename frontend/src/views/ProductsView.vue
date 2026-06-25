@@ -1,9 +1,10 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { apiFetch } from "../api/client";
 import ProductCard from "../components/ProductCard.vue";
+import PageHeader from "../components/PageHeader.vue";
 import StatusBlock from "../components/StatusBlock.vue";
 import { useAuthStore } from "../stores/auth";
 
@@ -32,7 +33,6 @@ const joinedCount = computed(() => joinedProductIds.value.size);
 const groupedProducts = computed(() => {
   const groups = new Map();
   const groupByBank = viewMode.value === "bank";
-
   const visibleProducts = focusedBank.value && groupByBank
     ? products.value.filter(product => product.bank_name === focusedBank.value)
     : products.value;
@@ -48,6 +48,7 @@ const groupedProducts = computed(() => {
 
 const isBankFocused = computed(() => viewMode.value === "bank" && Boolean(focusedBank.value || filters.bank));
 
+<<<<<<< HEAD
 const productTypeCounts = computed(() => {
   const counts = new Map();
   products.value.forEach(product => {
@@ -73,9 +74,11 @@ const groupedLoans = computed(() => {
 });
 const isLoanGroupFocused = computed(() => Boolean(loanViewMode.value === "bank" ? focusedLoanBank.value : focusedLoanType.value));
 
+=======
+>>>>>>> cdd745b (1200)
 function groupIcon(name) {
-  if (name.includes("적금")) return "♧";
-  if (name.includes("예금")) return "◈";
+  if (name.includes("적금")) return "적";
+  if (name.includes("예금")) return "예";
   return name.slice(0, 1);
 }
 
@@ -179,10 +182,18 @@ onMounted(async () => {
 <template>
   <main class="container products-page-local">
     <header class="products-hero-local">
+<<<<<<< HEAD
       <div>
         <h1>상품</h1>
         <p>은행별 필터와 검색으로 상품을 비교합니다.</p>
       </div>
+=======
+      <PageHeader
+        eyebrow="FINPICK PRODUCT"
+        title="예적금상품"
+        description="은행별 예금과 적금 상품을 금리, 기간, 조건 기준으로 비교합니다."
+      />
+>>>>>>> cdd745b (1200)
       <RouterLink class="interest-link-local" to="/favorites">
         <span aria-hidden="true">☆</span>
         관심 목록
@@ -201,7 +212,7 @@ onMounted(async () => {
         <input v-model="filters.q" placeholder="상품명 또는 은행명으로 검색하세요">
       </label>
       <label class="product-select-local">
-        <span aria-hidden="true">♜</span>
+        <span aria-hidden="true">▦</span>
         <select v-model="filters.bank" aria-label="은행 선택">
           <option value="">전체 은행</option>
           <option v-for="bank in banks" :key="bank" :value="bank">{{ bank }}</option>
@@ -221,10 +232,10 @@ onMounted(async () => {
       <section class="products-content-local">
         <div class="view-tabs-local" role="tablist" aria-label="상품 보기 방식">
           <button type="button" :class="{ active: viewMode === 'bank' }" @click="viewMode = 'bank'">
-            <span aria-hidden="true">♜</span> 은행별로 보기
+            <span aria-hidden="true">▦</span> 은행별로 보기
           </button>
           <button type="button" :class="{ active: viewMode === 'type' }" @click="viewMode = 'type'">
-            <span aria-hidden="true">◈</span> 상품 유형별 보기
+            <span aria-hidden="true">◇</span> 상품 유형별 보기
           </button>
         </div>
 
@@ -239,8 +250,8 @@ onMounted(async () => {
                 <em>{{ group.items.length }}개 상품</em>
               </div>
               <button v-if="viewMode === 'bank'" class="group-more-local" type="button" @click="toggleBankFocus(group.name)">
-                <template v-if="isBankFocused"><span aria-hidden="true">‹</span> 돌아가기</template>
-                <template v-else>전체 보기 <span aria-hidden="true">›</span></template>
+                <template v-if="isBankFocused">돌아가기</template>
+                <template v-else>전체 보기</template>
               </button>
             </div>
             <div class="product-card-grid-local">
@@ -261,20 +272,6 @@ onMounted(async () => {
           <button class="btn ghost" type="button" @click="resetFilters">필터 초기화</button>
         </section>
       </section>
-
-      <!-- <aside class="product-guide-local">
-        <p class="guide-eyebrow-local">다른 방식으로도 살펴보세요!</p>
-        <h2>상품 유형별로 정리하면<br>더 쉽게 비교할 수 있어요.</h2>
-        <p>원하는 상품 유형만 골라 금리와 가입 조건을 빠르게 비교해보세요.</p>
-        <div class="type-summary-local">
-          <article v-for="type in productTypeCounts" :key="type.name">
-            <span aria-hidden="true">{{ groupIcon(type.name) }}</span>
-            <strong>{{ type.name }}</strong>
-            <em>{{ type.count }}개 상품</em>
-          </article>
-        </div>
-        <button class="btn ghost guide-button-local" type="button" @click="viewMode = 'type'">상품 유형별 보기로 이동 →</button>
-      </aside> -->
     </div>
     <section v-else class="loan-results-local">
       <form class="product-filter-local loan-filter-local" @submit.prevent="focusedLoanBank = ''; focusedLoanType = ''; loadLoans()">
@@ -313,9 +310,12 @@ onMounted(async () => {
 <style scoped>
 .products-page-local { min-height: calc(100vh - 72px); padding-top: 2.8rem; padding-bottom: 4rem; }
 .products-hero-local { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: 1.45rem; }
+<<<<<<< HEAD
 .main-product-tabs-local { display: grid; grid-template-columns: repeat(2, 1fr); gap: .25rem; background: #edf2f8; border-radius: 12px; margin-bottom: .9rem; padding: .25rem; }.main-product-tabs-local button { min-height: 44px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #526780; cursor: pointer; font-weight: 850; }.main-product-tabs-local button.active { border-color: #9fc1ff; background: #fff; color: #196ae9; }.loan-groups-local { display:grid; gap:1.35rem; }.loan-group-local { border:1px solid #dce6f2; border-radius:18px; background:#f8fbff; padding:1rem; }.loan-grid-local { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }.loan-card-local { border:1px solid #dce6f2; border-radius:14px; background:#fff; cursor:pointer; padding:1rem; box-shadow:0 5px 16px rgba(29,55,88,.045); transition:.18s ease; }.loan-card-local:hover,.loan-card-local:focus-visible { border-color:#9bc0ff; box-shadow:0 12px 24px rgba(38,100,220,.1); outline:0; transform:translateY(-2px); }.loan-card-top-local { display:flex; justify-content:space-between; gap:.5rem; align-items:center; }.loan-card-top-local span { border-radius:999px; background:#e9f8f5; color:#16806f; padding:.28rem .52rem; font-size:.72rem; font-weight:900; }.loan-card-top-local strong { color:#1768e8; font-size:.9rem; }.loan-card-local h3 { color:#183250; font-size:1.05rem; line-height:1.4; margin:.75rem 0 .25rem; }.loan-card-local > p { color:#6b7d93; margin:0; }.loan-card-local dl { border-top:1px dashed #dce6f0; color:#64768e; font-size:.8rem; margin:1rem 0 0; padding-top:.7rem; }.loan-card-local dl div { display:flex; gap:.5rem; justify-content:space-between; margin-top:.35rem; }.loan-card-local dd { margin:0; max-width:62%; overflow:hidden; text-align:right; text-overflow:ellipsis; white-space:nowrap; }.loan-card-note-local { border-radius:8px; background:#f4f8fd; color:#58708a; font-size:.75rem; line-height:1.45; margin-top:.9rem !important; padding:.55rem .65rem; }.loan-detail-link-local { background:transparent; border:0; color:#1f6ee8; cursor:pointer; font-weight:850; margin-top:.8rem; padding:0; }.loan-view-tabs-local { margin-bottom:1rem; }
 .products-hero-local h1 { margin: 0; color: #102a4b; font-size: 2rem; letter-spacing: -.045em; }
 .products-hero-local p { margin: .42rem 0 0; color: var(--muted); }
+=======
+>>>>>>> cdd745b (1200)
 .interest-link-local { display: inline-flex; align-items: center; gap: .5rem; min-height: 46px; border: 1px solid #dce6f2; border-radius: 12px; background: #fff; box-shadow: 0 7px 18px rgba(29, 55, 88, .06); color: #344b68; font-weight: 850; padding: 0 .9rem; text-decoration: none; }
 .interest-link-local > span { color: #2b75ed; font-size: 1.25rem; }
 .interest-link-local b { display: grid; min-width: 20px; height: 20px; place-items: center; border-radius: 50%; background: #216deb; color: #fff; font-size: .74rem; }
@@ -324,7 +324,6 @@ onMounted(async () => {
 .product-search-local > span, .product-select-local > span { color: #3577e9; font-size: 1.25rem; font-weight: 900; }
 .product-search-local input, .product-select-local select { width: 100%; border: 0; outline: 0; background: transparent; color: #1d3657; font: inherit; font-weight: 750; }
 .product-search-submit { min-height: 48px; border-radius: 11px; padding-inline: 1.2rem; }
-.products-layout-local { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 1.6rem; align-items: start; }
 .view-tabs-local { display: grid; grid-template-columns: repeat(2, 1fr); gap: .25rem; border-radius: 12px; background: #edf2f8; padding: .25rem; }
 .view-tabs-local button { min-height: 46px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #526780; cursor: pointer; font-weight: 850; }
 .view-tabs-local button.active { border-color: #9fc1ff; background: #fff; box-shadow: 0 4px 12px rgba(37, 99, 235, .08); color: #196ae9; }
@@ -338,22 +337,15 @@ onMounted(async () => {
 .group-name-local h2 { margin: 0; color: #183250; font-size: 1.22rem; letter-spacing: -.03em; }
 .group-name-local em { border-radius: 999px; background: #edf2f7; color: #61748c; font-size: .76rem; font-style: normal; font-weight: 800; padding: .25rem .5rem; }
 .group-more-local { border: 0; background: transparent; color: #246fe9; cursor: pointer; font-weight: 850; }
-.group-more-local span { font-size: 1.2rem; }
 .product-card-grid-local { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem; }
-.product-guide-local { position: sticky; top: 92px; border: 1px solid #d8e5f3; border-radius: 16px; background: linear-gradient(145deg, #fff, #f3f8ff); box-shadow: 0 10px 24px rgba(29, 55, 88, .05); padding: 1.2rem; }
-.guide-eyebrow-local { margin: 0; color: #176bea; font-size: .82rem; font-weight: 900; }
-.product-guide-local h2 { margin: .5rem 0; color: #183250; font-size: 1.12rem; line-height: 1.45; letter-spacing: -.025em; }
-.product-guide-local > p:not(.guide-eyebrow-local) { color: #6b7d93; font-size: .83rem; line-height: 1.6; }
-.type-summary-local { display: grid; gap: .65rem; margin: 1rem 0; }
-.type-summary-local article { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: .5rem; border: 1px solid #dbe6f3; border-radius: 10px; background: rgba(255,255,255,.82); padding: .7rem; }
-.type-summary-local span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: #dcf5ed; color: #158662; font-weight: 900; }
-.type-summary-local strong { color: #31506c; font-size: .9rem; }
-.type-summary-local em { color: #6a7c92; font-size: .73rem; font-style: normal; }
-.guide-button-local { width: 100%; border-radius: 10px; color: #1b6ce9; font-size: .82rem; }
 .product-empty-local { display: grid; justify-items: center; gap: .5rem; border: 1px dashed #c9d9ec; border-radius: 16px; background: #fff; color: #657991; margin-top: 1.25rem; padding: 3rem 1rem; text-align: center; }
 .product-empty-local > span { color: #2d76ec; font-size: 2rem; }
 .product-empty-local h2 { margin: 0; color: #1d3858; font-size: 1.2rem; }
 .product-empty-local p { margin: 0; }
+<<<<<<< HEAD
 @media (max-width: 980px) { .products-layout-local { grid-template-columns: 1fr; } .product-guide-local { position: static; } .loan-grid-local { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) { .products-page-local { padding-top: 1.75rem; } .products-hero-local { align-items: stretch; flex-direction: column; } .interest-link-local { align-self: flex-start; } .product-filter-local { grid-template-columns: 1fr; } .product-card-grid-local, .loan-grid-local { grid-template-columns: 1fr; } .product-group-head-local { align-items: start; } .loan-type-tabs-local { display:grid; grid-template-columns:1fr; } }
+=======
+@media (max-width: 720px) { .products-page-local { padding-top: 1.75rem; } .products-hero-local { align-items: stretch; flex-direction: column; } .interest-link-local { align-self: flex-start; } .product-filter-local { grid-template-columns: 1fr; } .product-card-grid-local { grid-template-columns: 1fr; } .product-group-head-local { align-items: start; } }
+>>>>>>> cdd745b (1200)
 </style>

@@ -67,9 +67,10 @@ export const useAuthStore = defineStore("auth", {
       }
     },
     async updateProfile(payload) {
+      const isFormData = payload instanceof FormData;
       this.user = await apiFetch("/auth/me/", {
         method: "PATCH",
-        body: JSON.stringify(payload)
+        body: isFormData ? payload : JSON.stringify(payload)
       });
     },
     setUser(user) {
@@ -77,3 +78,4 @@ export const useAuthStore = defineStore("auth", {
     }
   }
 });
+

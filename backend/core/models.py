@@ -93,6 +93,7 @@ class User(AbstractUser):
     )
 
     nickname = models.CharField(max_length=30, blank=True)
+    profile_image = models.FileField(upload_to="profiles/", blank=True, null=True)
     age = models.PositiveIntegerField(null=True, blank=True)
     age_group = models.CharField(max_length=20, choices=AGE_GROUP_CHOICES, blank=True, default="")
     marital_status = models.CharField(max_length=20, choices=MARITAL_CHOICES, blank=True, default="")
@@ -137,4 +138,5 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"{self.author}: {self.content[:20]}"
+
 

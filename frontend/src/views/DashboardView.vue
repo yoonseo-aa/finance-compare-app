@@ -1,9 +1,10 @@
-﻿<script setup>
+<script setup>
 import { Chart } from "chart.js/auto";
 import { computed, nextTick, onMounted, ref } from "vue";
 
 import { apiFetch } from "../api/client";
 import StatusBlock from "../components/StatusBlock.vue";
+import PageHeader from "../components/PageHeader.vue";
 
 const dashboard = ref(null);
 const loading = ref(true);
@@ -152,10 +153,11 @@ onMounted(loadDashboard);
 
 <template>
   <main class="container dashboard-page aligned-dashboard-page">
-    <div class="section-head">
-      <h1>개인화 대시보드</h1>
-      <p>내 추천 프로필과 금융 API 상품 데이터를 바탕으로 목표 가능성, 재산현황, 추천 상품을 확인합니다.</p>
-    </div>
+    <PageHeader
+      eyebrow="MY FINANCE"
+      title="개인화 대시보드"
+      description="내 추천 프로필과 금융 API 상품 데이터를 바탕으로 목표 가능성, 재산현황, 추천 상품을 확인합니다."
+    />
 
     <div class="filter-bar dashboard-action-bar">
       <RouterLink class="btn primary" to="/recommend-profile">나의 정보 입력하기</RouterLink>
@@ -262,3 +264,4 @@ onMounted(loadDashboard);
     </template>
   </main>
 </template>
+
