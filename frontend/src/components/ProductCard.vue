@@ -48,6 +48,6 @@ const conditionText = computed(() => props.product.special_condition || props.pr
 .product-meta-local span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .product-rate-local { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding-top: .75rem; }
 .product-rate-local strong { color: #176be9; font-size: 1.22rem; letter-spacing: -.035em; }
-.product-rate-local span { border: 1px solid #bcd3ff; border-radius: 7px; color: #276fe5; font-size: .73rem; font-weight: 850; padding: .35rem .48rem; }
+.product-rate-local span { border: 0; background: transparent; color: #1f6ee8; font-size: .78rem; font-weight: 850; padding: 0; }
 .product-rate-local b { font-size: 1.05rem; }
 </style>

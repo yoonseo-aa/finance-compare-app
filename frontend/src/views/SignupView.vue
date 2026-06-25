@@ -37,9 +37,7 @@ async function submit() {
 <template>
   <main class="auth-page">
     <form class="form-panel wide auth-card" @submit.prevent="submit">
-      <span class="form-eyebrow">STEP 1</span>
       <h1>회원가입</h1>
-      <p class="muted">계정 정보만 먼저 만들고, 추천에 필요한 상황 정보는 다음 단계에서 입력합니다.</p>
 
       <div class="form-grid signup-simple-grid">
         <label>아이디<input v-model="form.username" required></label>

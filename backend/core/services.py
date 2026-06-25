@@ -174,6 +174,76 @@ def fetch_finlife_loans(loan_type="credit", limit=50):
         })
     return products
 
+
+def _to_float(value, default=0):
+    try:
+        if value in ("", None):
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def fetch_finlife_savings_products(limit=80):
+    api_key = os.getenv("FINLIFE_API_KEY")
+    if not api_key:
+        raise FinlifeAPIError("FINLIFE_API_KEY가 설정되어 있지 않습니다.")
+
+    response = requests.get(
+        "https://finlife.fss.or.kr/finlifeapi/annuitySavingProductsSearch.json",
+        params={"auth": api_key, "topFinGrpNo": "060000", "pageNo": 1},
+        timeout=10,
+    )
+    response.raise_for_status()
+    payload = response.json().get("result", {})
+    if payload.get("err_cd") and payload["err_cd"] != "000":
+        raise FinlifeAPIError(f"금융 API 오류({payload['err_cd']}): {payload.get('err_msg', '알 수 없는 오류')}")
+
+    options_by_code = {}
+    for option in payload.get("optionList", []):
+        options_by_code.setdefault(option.get("fin_prdt_cd"), []).append(option)
+
+    products = []
+    for item in payload.get("baseList", [])[:limit]:
+        fin_co_no = item.get("fin_co_no", "")
+        fin_prdt_cd = item.get("fin_prdt_cd", "")
+        options = options_by_code.get(fin_prdt_cd, [])
+        rate_candidates = [
+            item.get("avg_prft_rate"),
+            item.get("btrm_prft_rate_1"),
+            item.get("btrm_prft_rate_2"),
+            item.get("btrm_prft_rate_3"),
+            item.get("dcls_rate"),
+            *[
+                option.get("avg_prft_rate") or option.get("btrm_prft_rate_1") or option.get("dcls_rate") or option.get("intr_rate2") or option.get("intr_rate")
+                for option in options
+            ],
+        ]
+        rate_value = max([_to_float(rate) for rate in rate_candidates] or [0])
+        product_code = f"savings:{fin_co_no}:{fin_prdt_cd}"
+        products.append({
+            "id": product_code,
+            "group": "savings",
+            "product_code": product_code,
+            "product_type_label": item.get("pnsn_kind_nm", "") or item.get("pnsn_recp_trm_nm", "") or "연금저축",
+            "product_subtype": item.get("pnsn_kind_nm", "") or item.get("sale_co", "") or "저축상품",
+            "name": item.get("fin_prdt_nm", ""),
+            "bank_name": item.get("kor_co_nm", ""),
+            "fin_co_no": fin_co_no,
+            "fin_prdt_cd": fin_prdt_cd,
+            "join_way": item.get("join_way", ""),
+            "join_member": item.get("join_member", "") or item.get("join_member_nm", ""),
+            "special_condition": item.get("spcl_cnd", "") or item.get("prdt_feature", ""),
+            "etc_note": item.get("etc_note", "") or item.get("pnsn_recp_trm_nm", ""),
+            "rate_label": "수익률",
+            "rate_value": rate_value,
+            "dcls_month": item.get("dcls_month", ""),
+            "dcls_strt_day": item.get("dcls_strt_day", ""),
+            "dcls_end_day": item.get("dcls_end_day", ""),
+            "options": options,
+        })
+    return products
+
 SPOT_API_SYMBOLS = {
     "gold": "GC=F",
     "silver": "SI=F",
@@ -341,6 +411,104 @@ def recommend_news_with_ai(query, articles):
         return (selected or fallback), bool(selected)
     except (requests.RequestException, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError):
         return fallback, False
+
+
+def _fallback_recommendation_explanations(recommendation_type, recommendations):
+    is_loan = recommendation_type == "loan"
+    items = []
+    for item in recommendations[:5]:
+        item_id = item.get("id") or item.get("product_code") or item.get("key")
+        if is_loan:
+            reason = "선택한 조건에서 금리와 월 예상 상환액 기준으로 비교 상위에 있어 추천합니다."
+            tags = ["상환 부담 비교", "금리 기준", "조건 적합"]
+        else:
+            reason = "선택한 조건에서 금리와 예상 수령액이 비교적 우수해 추천합니다."
+            tags = ["금리 우수", "예상 수령액", "조건 적합"]
+        items.append({
+            "id": str(item_id),
+            "ai_reason": reason,
+            "ai_summary_tags": tags,
+            "caution": "",
+        })
+    return {"used_ai": False, "model": None, "items": items}
+
+
+def _normalize_ai_explanation_items(recommendations, ai_items):
+    by_id = {}
+    for item in ai_items or []:
+        item_id = item.get("id")
+        if item_id is not None:
+            by_id[str(item_id)] = item
+
+    normalized = []
+    for recommendation in recommendations[:5]:
+        item_id = str(recommendation.get("id") or recommendation.get("product_code") or recommendation.get("key"))
+        ai_item = by_id.get(item_id, {})
+        tags = ai_item.get("ai_summary_tags") or []
+        if not isinstance(tags, list):
+            tags = []
+        normalized.append({
+            "id": item_id,
+            "ai_reason": str(ai_item.get("ai_reason") or "").strip(),
+            "ai_summary_tags": [str(tag)[:20] for tag in tags[:3]],
+            "caution": str(ai_item.get("caution") or "").strip(),
+        })
+    return normalized
+
+
+def explain_recommendations_with_ai(recommendation_type, user_conditions, recommendations):
+    fallback = _fallback_recommendation_explanations(recommendation_type, recommendations)
+    api_key = os.getenv("GMS_API_KEY")
+    if not api_key or not recommendations:
+        return fallback
+
+    base_url = os.getenv("GMS_OPENAI_BASE_URL", "https://gms.ssafy.io/gmsapi/api.openai.com/v1").rstrip("/")
+    model = os.getenv("GMS_RECOMMENDATION_MODEL", "gpt-5.1")
+    fallback_model = os.getenv("GMS_RECOMMENDATION_FALLBACK_MODEL", "gpt-5-mini")
+    developer_message = (
+        "한국어로 답하는 금융상품 추천 설명 작성자입니다. "
+        "투자·가입을 강요하지 말고 비교 참고용으로만 설명하세요. "
+        "제공된 사용자 조건과 상품 데이터에 없는 사실을 만들지 마세요. "
+        "각 상품별 추천 이유는 1~2문장으로 짧게 작성하고, 요약 태그는 2~3개만 주세요. "
+        "반드시 JSON 객체 {\"items\":[{\"id\":\"...\",\"ai_reason\":\"...\",\"ai_summary_tags\":[\"...\"],\"caution\":\"...\"}]} 형식으로만 응답하세요."
+    )
+    user_message = json.dumps({
+        "recommendation_type": recommendation_type,
+        "user_conditions": user_conditions,
+        "recommendations": recommendations[:5],
+    }, ensure_ascii=False)
+
+    def request_model(current_model):
+        response = requests.post(
+            f"{base_url}/chat/completions",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+            json={
+                "model": current_model,
+                "messages": [
+                    {"role": "developer", "content": developer_message},
+                    {"role": "user", "content": user_message},
+                ],
+                "response_format": {"type": "json_object"},
+            },
+            timeout=18,
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        payload = json.loads(content)
+        normalized_items = _normalize_ai_explanation_items(recommendations, payload.get("items", []))
+        if not any(item["ai_reason"] for item in normalized_items):
+            raise ValueError("AI response did not include usable explanations.")
+        return {"used_ai": True, "model": current_model, "items": normalized_items}
+
+    try:
+        return request_model(model)
+    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError):
+        if fallback_model and fallback_model != model:
+            try:
+                return request_model(fallback_model)
+            except (requests.RequestException, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError):
+                return fallback
+        return fallback
 
 
 

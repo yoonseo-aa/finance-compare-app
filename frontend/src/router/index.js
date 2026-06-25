@@ -19,6 +19,7 @@ import RecommendationsView from "../views/RecommendationsView.vue";
 import SearchResultsView from "../views/SearchResultsView.vue";
 import SignupView from "../views/SignupView.vue";
 import SocialCallbackView from "../views/SocialCallbackView.vue";
+import SavingsDetailView from "../views/SavingsDetailView.vue";
 import SpotView from "../views/SpotView.vue";
 import VideoDetailView from "../views/VideoDetailView.vue";
 import VideosView from "../views/VideosView.vue";
@@ -30,6 +31,7 @@ const router = createRouter({
     { path: "/search", name: "search", component: SearchResultsView },
     { path: "/products", name: "products", component: ProductsView },
     { path: "/products/loan/:type/:code", name: "loan-detail", component: LoanDetailView },
+    { path: "/products/savings/:code", name: "savings-detail", component: SavingsDetailView },
     { path: "/products/:id", name: "product-detail", component: ProductDetailView },
     { path: "/favorites", name: "favorites", component: FavoritesView, meta: { requiresAuth: true } },
     { path: "/dashboard", name: "dashboard", component: DashboardView, meta: { requiresAuth: true } },

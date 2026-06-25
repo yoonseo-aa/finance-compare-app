@@ -22,9 +22,13 @@ urlpatterns = [
     path("search/news/", views.news_search, name="news_search"),
     path("map/config/", views.map_config, name="map_config"),
     path("recommendations/", views.recommendations, name="recommendations"),
+    path("recommendations/ai-explain/", views.recommendation_ai_explain, name="recommendation_ai_explain"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("sync-finlife/", views.sync_finlife, name="sync_finlife"),
     path("loans/", views.loans, name="loans"),
+    path("loans/<str:loan_type>/<str:code>/join/", views.loan_join, name="loan_join"),
+    path("savings/", views.savings, name="savings"),
+    path("savings/<path:code>/join/", views.savings_join, name="savings_join"),
     path("stats/", views.stats, name="stats"),
     path("health/", views.health, name="health"),
 ]

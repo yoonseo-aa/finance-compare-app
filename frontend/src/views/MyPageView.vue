@@ -43,7 +43,7 @@ onMounted(() => auth.bootstrap());
       <RouterLink class="mypage-card" to="/favorites">
         <span>관심 상품</span>
         <strong>관심 목록 확인</strong>
-        <p>관심 목록에 담은 예적금 상품을 다시 확인합니다.</p>
+        <p>관심 목록에 담은 예적금·대출 상품을 다시 확인합니다.</p>
       </RouterLink>
     </section>
 

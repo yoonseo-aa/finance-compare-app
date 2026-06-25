@@ -22,12 +22,20 @@ const loanLoading = ref(false);
 const loanViewMode = ref("bank");
 const focusedLoanBank = ref("");
 const focusedLoanType = ref("");
+const savings = ref([]);
+const savingsLoading = ref(false);
+const savingsViewMode = ref("bank");
+const focusedSavingsBank = ref("");
+const focusedSavingsType = ref("");
 const focusedBank = ref("");
 const filters = reactive({ q: "", bank: "", sort: "rate" });
 const loanFilters = reactive({ q: "", bank: "", sort: "rate" });
+const savingsFilters = reactive({ q: "", bank: "", sort: "rate" });
 
 const joinedProductIds = computed(() => new Set((auth.user?.joined_products || []).map(product => Number(product.id))));
-const joinedCount = computed(() => joinedProductIds.value.size);
+const joinedLoanCount = computed(() => (auth.user?.joined_loans || []).length);
+const joinedSavingsCount = computed(() => (auth.user?.joined_savings || []).length);
+const joinedCount = computed(() => joinedProductIds.value.size + joinedLoanCount.value + joinedSavingsCount.value);
 
 const groupedProducts = computed(() => {
   const groups = new Map();
@@ -72,6 +80,21 @@ const groupedLoans = computed(() => {
   return [...groups.entries()].map(([name, items]) => ({ name, items }));
 });
 const isLoanGroupFocused = computed(() => Boolean(loanViewMode.value === "bank" ? focusedLoanBank.value : focusedLoanType.value));
+const savingsBanks = computed(() => [...new Set(savings.value.map(item => item.bank_name).filter(Boolean))].sort());
+const groupedSavings = computed(() => {
+  const groups = new Map();
+  const focusedGroup = savingsViewMode.value === "bank" ? focusedSavingsBank.value : focusedSavingsType.value;
+  const visibleSavings = focusedGroup
+    ? savings.value.filter(item => (savingsViewMode.value === "bank" ? item.bank_name : item.product_type_label) === focusedGroup)
+    : savings.value;
+  visibleSavings.forEach(item => {
+    const key = savingsViewMode.value === "bank" ? (item.bank_name || "금융기관") : (item.product_type_label || "저축상품");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  });
+  return [...groups.entries()].map(([name, items]) => ({ name, items }));
+});
+const isSavingsGroupFocused = computed(() => Boolean(savingsViewMode.value === "bank" ? focusedSavingsBank.value : focusedSavingsType.value));
 
 function groupIcon(name) {
   if (name.includes("적금")) return "♧";
@@ -108,6 +131,21 @@ async function loadLoans() {
   }
 }
 
+async function loadSavings() {
+  savingsLoading.value = true;
+  error.value = "";
+  try {
+    const params = new URLSearchParams();
+    Object.entries(savingsFilters).forEach(([key, value]) => value && params.set(key, value));
+    const data = await apiFetch(`/savings/?${params.toString()}`);
+    savings.value = data.results || [];
+  } catch (err) {
+    error.value = err.message || "저축상품을 불러오지 못했습니다.";
+  } finally {
+    savingsLoading.value = false;
+  }
+}
+
 function visibleLoanItems(group) {
   return isLoanGroupFocused.value ? group.items : group.items.slice(0, 2);
 }
@@ -126,6 +164,24 @@ function openLoanDetail(loan) {
   router.push({ name: "loan-detail", params: { type: loan.loan_type, code: loan.product_code } });
 }
 
+function visibleSavingsItems(group) {
+  return isSavingsGroupFocused.value ? group.items : group.items.slice(0, 2);
+}
+
+function toggleSavingsGroup(groupName) {
+  if (isSavingsGroupFocused.value) {
+    focusedSavingsBank.value = "";
+    focusedSavingsType.value = "";
+    return;
+  }
+  if (savingsViewMode.value === "bank") focusedSavingsBank.value = groupName;
+  else focusedSavingsType.value = groupName;
+}
+
+function openSavingsDetail(item) {
+  router.push({ name: "savings-detail", params: { code: item.product_code } });
+}
+
 function resetLoanFilters() {
   loanFilters.q = "";
   loanFilters.bank = "";
@@ -135,9 +191,19 @@ function resetLoanFilters() {
   loadLoans();
 }
 
+function resetSavingsFilters() {
+  savingsFilters.q = "";
+  savingsFilters.bank = "";
+  savingsFilters.sort = "rate";
+  focusedSavingsBank.value = "";
+  focusedSavingsType.value = "";
+  loadSavings();
+}
+
 function selectMainGroup(group) {
   mainProductGroup.value = group;
   if (group === "loan") loadLoans();
+  if (group === "savings") loadSavings();
 }
 
 function resetFilters() {
@@ -171,6 +237,12 @@ onMounted(async () => {
     await loadLoans();
     return;
   }
+  if (group === "savings") {
+    mainProductGroup.value = "savings";
+    savingsFilters.q = query;
+    await loadSavings();
+    return;
+  }
   filters.q = query;
   await loadProducts();
 });
@@ -189,10 +261,12 @@ onMounted(async () => {
         <b>{{ joinedCount }}</b>
       </RouterLink>
     </header>
-
+    
     <div class="main-product-tabs-local">
-      <button type="button" :class="{ active: mainProductGroup === 'deposit' }" @click="selectMainGroup('deposit')">예적금</button>
-      <button type="button" :class="{ active: mainProductGroup === 'loan' }" @click="selectMainGroup('loan')">대출</button>
+      
+      <button type="button" :class="{ active: mainProductGroup === 'deposit' }" @click="selectMainGroup('deposit')">▥ 예적금</button>
+      <button type="button" :class="{ active: mainProductGroup === 'loan' }" @click="selectMainGroup('loan')">⌂ 대출</button>
+      <button type="button" :class="{ active: mainProductGroup === 'savings' }" @click="selectMainGroup('savings')">◇ 저축상품</button>
     </div>
 
     <form v-if="mainProductGroup === 'deposit'" class="product-filter-local" @submit.prevent="loadProducts">
@@ -217,7 +291,7 @@ onMounted(async () => {
       <button class="btn primary product-search-submit" type="submit">검색하기</button>
     </form>
 
-    <div v-if="mainProductGroup === 'deposit'" class="products-page-local">
+    <div v-if="mainProductGroup === 'deposit'" class="deposit-products-local">
       <section class="products-content-local">
         <div class="view-tabs-local" role="tablist" aria-label="상품 보기 방식">
           <button type="button" :class="{ active: viewMode === 'bank' }" @click="viewMode = 'bank'">
@@ -276,7 +350,7 @@ onMounted(async () => {
         <button class="btn ghost guide-button-local" type="button" @click="viewMode = 'type'">상품 유형별 보기로 이동 →</button>
       </aside> -->
     </div>
-    <section v-else class="loan-results-local">
+    <section v-else-if="mainProductGroup === 'loan'" class="loan-results-local">
       <form class="product-filter-local loan-filter-local" @submit.prevent="focusedLoanBank = ''; focusedLoanType = ''; loadLoans()">
         <label class="product-search-local"><span aria-hidden="true">⌕</span><input v-model="loanFilters.q" placeholder="상품명 또는 금융회사명으로 검색하세요"></label>
         <label class="product-select-local"><span aria-hidden="true">⌂</span><select v-model="loanFilters.bank"><option value="">전체 금융기관</option><option v-for="bank in loanBanks" :key="bank" :value="bank">{{ bank }}</option></select></label>
@@ -284,8 +358,12 @@ onMounted(async () => {
         <button class="btn primary product-search-submit" type="submit">검색하기</button>
       </form>
       <div class="view-tabs-local loan-view-tabs-local" role="tablist" aria-label="대출 보기 방식">
-        <button type="button" :class="{ active: loanViewMode === 'bank' }" @click="loanViewMode = 'bank'; focusedLoanBank = ''; focusedLoanType = ''">금융기관별 보기</button>
-        <button type="button" :class="{ active: loanViewMode === 'type' }" @click="loanViewMode = 'type'; focusedLoanBank = ''; focusedLoanType = ''">대출 유형별 보기</button>
+          <button type="button" :class="{ active: loanViewMode === 'bank' }" @click="loanViewMode = 'bank'; focusedLoanBank = ''; focusedLoanType = ''">
+            <span aria-hidden="true">♜</span> 금융 기관별로 보기
+          </button>
+          <button type="button" :class="{ active: loanViewMode === 'type' }" @click="loanViewMode = 'type'; focusedLoanBank = ''; focusedLoanType = ''">
+            <span aria-hidden="true">◈</span> 상품 유형별로 보기
+          </button>
       </div>
       <p v-if="loanLoading" class="status-block">대출 상품을 불러오는 중입니다.</p>
       <p v-else-if="error" class="status-block warning">{{ error }}</p>
@@ -297,15 +375,50 @@ onMounted(async () => {
           </div>
           <div class="loan-grid-local">
             <article v-for="loan in visibleLoanItems(group)" :key="`${loan.loan_type}-${loan.product_code}`" class="loan-card-local" role="link" tabindex="0" @click="openLoanDetail(loan)" @keydown.enter="openLoanDetail(loan)">
-              <div class="loan-card-top-local"><span>{{ loan.loan_type_label }}</span><strong>{{ loan.rate_min ? `최저 ${loan.rate_min.toFixed(2)}%` : '금리 정보 확인' }}</strong></div>
+              <div class="loan-card-top-local"><span>{{ loan.loan_type_label }}</span></div>
               <h3>{{ loan.name }}</h3><p>{{ loan.bank_name }}</p>
               <dl><div><dt>대출 한도</dt><dd>{{ loan.loan_limit || '상품별 상이' }}</dd></div><div><dt>상환 방식</dt><dd>{{ loan.repay_type || '상품별 상이' }}</dd></div><div><dt>가입 대상</dt><dd>{{ loan.join_member || '상세 조건 확인' }}</dd></div></dl>
-              <p class="loan-card-note-local">{{ loan.loan_inci_expn || loan.early_rpay_fee || '세부 조건은 금융기관 상품 안내에서 확인해주세요.' }}</p><button class="loan-detail-link-local" type="button" @click.stop="openLoanDetail(loan)">상품 상세보기 ›</button>
+              <p class="loan-card-note-local">{{ loan.loan_inci_expn || loan.early_rpay_fee || '세부 조건은 금융기관 상품 안내에서 확인해주세요.' }}</p><div class="loan-card-bottom-local"><strong>{{ loan.rate_min ? `최저 ${loan.rate_min.toFixed(2)}%` : '금리 정보 확인' }}</strong><button class="loan-detail-link-local" type="button" @click.stop="openLoanDetail(loan)">상품 상세보기 ›</button></div>
             </article>
           </div>
         </article>
       </section>
       <section v-else class="product-empty-local"><h2>조건에 맞는 대출 상품이 없습니다.</h2><p>검색어를 줄이거나 금융기관 필터를 전체로 변경해보세요.</p><button class="btn ghost" type="button" @click="resetLoanFilters">필터 초기화</button></section>
+    </section>
+    <section v-else class="loan-results-local">
+      <form class="product-filter-local loan-filter-local" @submit.prevent="focusedSavingsBank = ''; focusedSavingsType = ''; loadSavings()">
+        <label class="product-search-local"><span aria-hidden="true">⌕</span><input v-model="savingsFilters.q" placeholder="저축상품명 또는 금융회사명으로 검색하세요"></label>
+        <label class="product-select-local"><span aria-hidden="true">♜</span><select v-model="savingsFilters.bank"><option value="">전체 금융기관</option><option v-for="bank in savingsBanks" :key="bank" :value="bank">{{ bank }}</option></select></label>
+        <label class="product-select-local"><span aria-hidden="true">↕</span><select v-model="savingsFilters.sort"><option value="rate">수익률순</option><option value="bank">금융회사순</option><option value="name">상품명순</option></select></label>
+        <button class="btn primary product-search-submit" type="submit">검색하기</button>
+      </form>
+      <div class="view-tabs-local loan-view-tabs-local" role="tablist" aria-label="저축상품 보기 방식">
+          <button type="button" :class="{ active: savingsViewMode === 'bank' }" @click="savingsViewMode = 'bank'; focusedSavingsBank = ''; focusedSavingsType = ''">
+            <span aria-hidden="true">♜</span> 은행별로 보기
+          </button>
+          <button type="button" :class="{ active: savingsViewMode === 'type' }" @click="savingsViewMode = 'type'; focusedSavingsBank = ''; focusedSavingsType = ''">
+            <span aria-hidden="true">◈</span> 상품 유형별 보기
+          </button>
+      </div>
+      <p v-if="savingsLoading" class="status-block">저축상품을 불러오는 중입니다.</p>
+      <p v-else-if="error" class="status-block warning">{{ error }}</p>
+      <section v-else-if="groupedSavings.length" class="loan-groups-local">
+        <article v-for="group in groupedSavings" :key="group.name" class="loan-group-local">
+          <div class="product-group-head-local">
+            <div class="group-name-local"><span class="group-icon-local" aria-hidden="true">♟</span><h2>{{ group.name }}</h2><em>{{ group.items.length }}개 상품</em></div>
+            <button v-if="isSavingsGroupFocused || group.items.length > 2" class="group-more-local" type="button" @click="toggleSavingsGroup(group.name)">{{ isSavingsGroupFocused ? '‹ 돌아가기' : '전체 보기 ›' }}</button>
+          </div>
+          <div class="loan-grid-local">
+            <article v-for="item in visibleSavingsItems(group)" :key="item.product_code" class="loan-card-local" role="link" tabindex="0" @click="openSavingsDetail(item)" @keydown.enter="openSavingsDetail(item)">
+              <div class="loan-card-top-local"><span>{{ item.product_type_label || '저축상품' }}</span></div>
+              <h3>{{ item.name }}</h3><p>{{ item.bank_name }}</p>
+              <dl><div><dt>가입대상</dt><dd>{{ item.join_member || '정보 없음' }}</dd></div><div><dt>가입방법</dt><dd>{{ item.join_way || '정보 없음' }}</dd></div><div><dt>상품유형</dt><dd>{{ item.product_subtype || '저축상품' }}</dd></div></dl>
+              <p class="loan-card-note-local">{{ item.special_condition || item.etc_note || '상세 조건은 금융회사 상품 안내에서 확인해주세요.' }}</p><div class="loan-card-bottom-local"><strong>{{ item.rate_value ? `최고 ${Number(item.rate_value).toFixed(2)}%` : '수익률 정보 확인' }}</strong><button class="loan-detail-link-local" type="button" @click.stop="openSavingsDetail(item)">상품 상세보기 ›</button></div>
+            </article>
+          </div>
+        </article>
+      </section>
+      <section v-else class="product-empty-local"><h2>조건에 맞는 저축상품이 없습니다.</h2><p>검색어를 줄이거나 금융기관 필터를 전체로 변경해보세요.</p><button class="btn ghost" type="button" @click="resetSavingsFilters">필터 초기화</button></section>
     </section>
   </main>
 </template>
@@ -313,7 +426,7 @@ onMounted(async () => {
 <style scoped>
 .products-page-local { min-height: calc(100vh - 72px); padding-top: 2.8rem; padding-bottom: 4rem; }
 .products-hero-local { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: 1.45rem; }
-.main-product-tabs-local { display: grid; grid-template-columns: repeat(2, 1fr); gap: .25rem; background: #edf2f8; border-radius: 12px; margin-bottom: .9rem; padding: .25rem; }.main-product-tabs-local button { min-height: 44px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #526780; cursor: pointer; font-weight: 850; }.main-product-tabs-local button.active { border-color: #9fc1ff; background: #fff; color: #196ae9; }.loan-groups-local { display:grid; gap:1.35rem; }.loan-group-local { border:1px solid #dce6f2; border-radius:18px; background:#f8fbff; padding:1rem; }.loan-grid-local { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }.loan-card-local { border:1px solid #dce6f2; border-radius:14px; background:#fff; cursor:pointer; padding:1rem; box-shadow:0 5px 16px rgba(29,55,88,.045); transition:.18s ease; }.loan-card-local:hover,.loan-card-local:focus-visible { border-color:#9bc0ff; box-shadow:0 12px 24px rgba(38,100,220,.1); outline:0; transform:translateY(-2px); }.loan-card-top-local { display:flex; justify-content:space-between; gap:.5rem; align-items:center; }.loan-card-top-local span { border-radius:999px; background:#e9f8f5; color:#16806f; padding:.28rem .52rem; font-size:.72rem; font-weight:900; }.loan-card-top-local strong { color:#1768e8; font-size:.9rem; }.loan-card-local h3 { color:#183250; font-size:1.05rem; line-height:1.4; margin:.75rem 0 .25rem; }.loan-card-local > p { color:#6b7d93; margin:0; }.loan-card-local dl { border-top:1px dashed #dce6f0; color:#64768e; font-size:.8rem; margin:1rem 0 0; padding-top:.7rem; }.loan-card-local dl div { display:flex; gap:.5rem; justify-content:space-between; margin-top:.35rem; }.loan-card-local dd { margin:0; max-width:62%; overflow:hidden; text-align:right; text-overflow:ellipsis; white-space:nowrap; }.loan-card-note-local { border-radius:8px; background:#f4f8fd; color:#58708a; font-size:.75rem; line-height:1.45; margin-top:.9rem !important; padding:.55rem .65rem; }.loan-detail-link-local { background:transparent; border:0; color:#1f6ee8; cursor:pointer; font-weight:850; margin-top:.8rem; padding:0; }.loan-view-tabs-local { margin-bottom:1rem; }
+.main-product-tabs-local { display: grid; grid-template-columns: repeat(3, 1fr); gap: .25rem; background: #edf2f8; border-radius: 12px; margin-bottom: .9rem; padding: .25rem; }.main-product-tabs-local button { min-height: 44px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #526780; cursor: pointer; font-weight: 850; }.main-product-tabs-local button.active { border-color: #9fc1ff; background: #fff; color: #196ae9; }.loan-groups-local { display:grid; gap:1.35rem; }.loan-group-local { border:1px solid #dce6f2; border-radius:18px; background:#f8fbff; padding:1rem; }.loan-grid-local { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }.loan-card-local { border:1px solid #dce6f2; border-radius:14px; background:#fff; cursor:pointer; padding:1rem; box-shadow:0 5px 16px rgba(29,55,88,.045); transition:.18s ease; }.loan-card-local:hover,.loan-card-local:focus-visible { border-color:#9bc0ff; box-shadow:0 12px 24px rgba(38,100,220,.1); outline:0; transform:translateY(-2px); }.loan-card-top-local { display:flex; justify-content:space-between; gap:.5rem; align-items:center; }.loan-card-top-local span { border-radius:999px; background:#e9f8f5; color:#16806f; padding:.28rem .52rem; font-size:.72rem; font-weight:900; }.loan-card-top-local strong { color:#1768e8; font-size:.9rem; }.loan-card-local h3 { color:#183250; font-size:1.05rem; line-height:1.4; margin:.75rem 0 .25rem; }.loan-card-local > p { color:#6b7d93; margin:0; }.loan-card-local dl { border-top:1px dashed #dce6f0; color:#64768e; font-size:.8rem; margin:1rem 0 0; padding-top:.7rem; }.loan-card-local dl div { display:flex; gap:.5rem; justify-content:space-between; margin-top:.35rem; }.loan-card-local dd { margin:0; max-width:62%; overflow:hidden; text-align:right; text-overflow:ellipsis; white-space:nowrap; }.loan-card-note-local { border-radius:8px; background:#f4f8fd; color:#58708a; font-size:.75rem; line-height:1.45; margin-top:.9rem !important; padding:.55rem .65rem; }.loan-detail-link-local { background:transparent; border:0; color:#1f6ee8; cursor:pointer; font-weight:850; margin-top:.8rem; padding:0; }.loan-view-tabs-local { margin-bottom:1rem; }
 .products-hero-local h1 { margin: 0; color: #102a4b; font-size: 2rem; letter-spacing: -.045em; }
 .products-hero-local p { margin: .42rem 0 0; color: var(--muted); }
 .interest-link-local { display: inline-flex; align-items: center; gap: .5rem; min-height: 46px; border: 1px solid #dce6f2; border-radius: 12px; background: #fff; box-shadow: 0 7px 18px rgba(29, 55, 88, .06); color: #344b68; font-weight: 850; padding: 0 .9rem; text-decoration: none; }
@@ -354,6 +467,9 @@ onMounted(async () => {
 .product-empty-local > span { color: #2d76ec; font-size: 2rem; }
 .product-empty-local h2 { margin: 0; color: #1d3858; font-size: 1.2rem; }
 .product-empty-local p { margin: 0; }
+.loan-card-bottom-local { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding-top: .75rem; }
+.loan-card-bottom-local strong { color: #176be9; font-size: 1.22rem; letter-spacing: -.035em; }
+.loan-card-bottom-local .loan-detail-link-local { font-size: .78rem; line-height: 1; margin-top: 0; }
 @media (max-width: 980px) { .products-layout-local { grid-template-columns: 1fr; } .product-guide-local { position: static; } .loan-grid-local { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) { .products-page-local { padding-top: 1.75rem; } .products-hero-local { align-items: stretch; flex-direction: column; } .interest-link-local { align-self: flex-start; } .product-filter-local { grid-template-columns: 1fr; } .product-card-grid-local, .loan-grid-local { grid-template-columns: 1fr; } .product-group-head-local { align-items: start; } .loan-type-tabs-local { display:grid; grid-template-columns:1fr; } }
 </style>

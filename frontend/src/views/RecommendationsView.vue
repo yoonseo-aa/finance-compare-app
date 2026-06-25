@@ -13,6 +13,21 @@ const error = ref("");
 const usingPublicData = ref(false);
 const items = ref([]);
 const resultMode = ref("score");
+const activeRecommendationType = ref("deposit");
+const loanItems = ref([]);
+const loanResultMode = ref("score");
+const loanError = ref("");
+const savingsItems = ref([]);
+const savingsResultMode = ref("score");
+const savingsError = ref("");
+const aiExplanationLoading = ref(false);
+const aiExplanationError = ref("");
+const aiExplanations = reactive({ deposit: {}, loan: {}, savings: {} });
+const aiExplanationMeta = reactive({
+  deposit: { usedAi: false, model: null },
+  loan: { usedAi: false, model: null },
+  savings: { usedAi: false, model: null }
+});
 
 const form = reactive({
   direction: "forward",
@@ -26,6 +41,30 @@ const form = reactive({
   purpose: "목돈 마련"
 });
 
+const loanForm = reactive({
+  audience: "all",
+  loanType: "mortgage",
+  strategy: "rate",
+  desiredAmount: 200000000,
+  loanTerm: 30,
+  repayType: "원리금균등상환",
+  incomeRange: "4000-6000",
+  creditGrade: "excellent",
+  tags: ["무주택", "직장인"]
+});
+
+const savingsForm = reactive({
+  audience: "all",
+  productType: "all",
+  strategy: "rate",
+  monthlyAmount: 400000,
+  targetAmount: 5000000,
+  periodMonths: 12,
+  purpose: "목돈 마련",
+  preference: "stable",
+  tags: ["자유 납입", "우대조건 간단"]
+});
+
 const productTypes = [
   { label: "전체", value: "all", description: "예금과 적금을 함께 비교합니다." },
   { label: "정기예금", value: "deposit", description: "목돈을 한 번에 예치하는 상품을 봅니다." },
@@ -37,14 +76,14 @@ const audiences = [
     label: "전체",
     value: "all",
     count: 212,
-    title: "전체 예적금 추천 서비스",
+    title: "전체 예적금 상품",
     description: "기간, 금리, 예상 수령액을 기준으로 모든 상품을 비교합니다."
   },
   {
     label: "청년",
     value: "youth",
     count: 22,
-    title: "청년 추천용 예적금 서비스",
+    title: "청년 추천",
     description: "첫 거래, 비대면, 급여이체 조건이 맞는 상품을 우선 확인합니다."
   },
   {
@@ -72,7 +111,72 @@ const audiences = [
 
 const purposes = ["목돈 마련", "결혼자금", "차 구매", "여행", "학자금", "비상금"];
 
+const loanAudiences = [
+  { label: "전체", value: "all", count: 8, title: "전체 대출 상품", description: "금리, 한도, 상환 부담을 기준으로 조건에 맞는 상품을 추천합니다." },
+  { label: "직장인", value: "employee", count: 5, title: "직장인 추천", description: "소득 안정성과 상환 부담을 함께 고려해 상품을 비교합니다." },
+  { label: "사회초년생", value: "starter", count: 4, title: "사회초년생 추천", description: "초기 한도와 금리 부담이 낮은 상품을 우선 확인합니다." },
+  { label: "신혼부부", value: "newlywed", count: 4, title: "신혼부부 주거 추천", description: "주거 목적과 장기 상환 조건에 맞는 상품을 강조합니다." },
+  { label: "자영업자", value: "business", count: 4, title: "자영업자 추천", description: "사업자 조건과 상환 방식이 유연한 상품을 함께 비교합니다." }
+];
+
+const loanProductTypes = [
+  { label: "주택담보대출", value: "mortgage", description: "주택을 담보로 제공" },
+  { label: "전세자금대출", value: "rent", description: "전세 보증금 마련" },
+  { label: "개인신용대출", value: "credit", description: "신용을 기반으로 한 대출" }
+];
+
+const loanStrategies = [
+  { label: "금리 우선", value: "rate", description: "최저 금리 중심 추천" },
+  { label: "한도 우선", value: "limit", description: "최대한도 중심 추천" },
+  { label: "상환 부담 최소", value: "payment", description: "월 상환액 최소화" },
+  { label: "고정/변동 선호", value: "fixed", description: "금리 유형 선호 반영" }
+];
+
+const repayTypes = ["원리금균등상환", "원금균등상환", "만기일시상환"];
+const incomeRanges = ["2천만 ~ 4천만", "4천만 ~ 6천만", "6천만 ~ 8천만", "8천만 이상"];
+const creditGrades = [
+  { label: "우수", value: "excellent" },
+  { label: "보통", value: "normal" },
+  { label: "낮음", value: "low" }
+];
+const loanTags = ["무주택", "청년", "직장인", "신혼부부", "사업자", "보증서 가능"];
+
+const savingsAudiences = [
+  { label: "전체", value: "all", count: 12, title: "전체 저축 상품", description: "목적, 납입 방식, 기간, 수익률을 기준으로 모든 상품을 비교합니다." },
+  { label: "청년", value: "youth", count: 6, title: "청년 저축 추천 서비스", description: "월 납입 부담과 자유로운 적립 조건을 함께 비교합니다." },
+  { label: "직장인", value: "employee", count: 5, title: "직장인 저축 추천 서비스", description: "급여 흐름에 맞춰 꾸준히 모을 수 있는 상품을 우선 확인합니다." },
+  { label: "신혼부부", value: "couple", count: 4, title: "신혼부부 목적자금 저축", description: "목돈 마련과 안정적인 만기 금액을 함께 고려합니다." },
+  // { label: "시니어", value: "senior", count: 3, title: "시니어 안정형 저축", description: "조건이 단순하고 안정적인 저축 상품을 중심으로 추천합니다." },
+  { label: "소상공인", value: "business", count: 3, title: "소상공인 유동성 저축", description: "현금흐름에 맞춰 유연하게 납입할 수 있는 상품을 비교합니다." }
+];
+
+const savingsProductTypes = [
+  { label: "전체", value: "all", description: "저축 상품을 함께 비교합니다." },
+  { label: "자유적립식 저축", value: "free", description: "원할 때 자유롭게 납입" },
+  { label: "정기적립식 저축", value: "regular", description: "매월 일정 금액 납입" },
+  { label: "목돈마련 저축", value: "goal", description: "목표 금액 중심 저축" }
+];
+
+const savingsStrategies = [
+  { label: "금리 우선", value: "rate", description: "높은 수익률 중심 추천" },
+  { label: "유연성 우선", value: "flexible", description: "납입 자유도 중심 추천" },
+  { label: "목표 달성 우선", value: "target", description: "목표 금액 달성 가능성 중심 추천" },
+  { label: "안정성 우선", value: "stable", description: "조건이 단순하고 안정적인 상품 추천" }
+];
+
+const savingsPurposes = ["목돈 마련", "비상금", "여행", "학자금", "결혼자금", "단기 저축"];
+const savingsPreferences = [
+  { label: "안정형", value: "stable" },
+  { label: "금리중시형", value: "rate" },
+  { label: "유연성중시형", value: "flexible" }
+];
+const savingsTags = ["자유 납입", "자동이체 가능", "우대조건 간단", "비상금", "목돈 마련", "단기 저축", "장기 저축"];
+
 const activeAudience = computed(() => audiences.find(item => item.value === form.audience) || audiences[0]);
+const activeLoanAudience = computed(() => loanAudiences.find(item => item.value === loanForm.audience) || loanAudiences[0]);
+const activeLoanType = computed(() => loanProductTypes.find(item => item.value === loanForm.loanType) || loanProductTypes[0]);
+const activeSavingsAudience = computed(() => savingsAudiences.find(item => item.value === savingsForm.audience) || savingsAudiences[0]);
+const activeSavingsType = computed(() => savingsProductTypes.find(item => item.value === savingsForm.productType) || savingsProductTypes[0]);
 
 const joinedProductIds = computed(() => {
   const joined = auth.user?.joined_products || [];
@@ -109,6 +213,62 @@ const summary = computed(() => {
     favoriteCount: favoriteItems.value.length
   };
 });
+
+const visibleLoanItems = computed(() => {
+  const filtered = loanItems.value.filter(loan => {
+    if (loanForm.loanType !== "all" && loan.loan_type !== loanForm.loanType) return false;
+    return true;
+  });
+
+  return [...filtered].sort((a, b) => {
+    if (loanResultMode.value === "limit") return loanLimitScore(b) - loanLimitScore(a);
+    if (loanResultMode.value === "rate") return loanRateValue(a) - loanRateValue(b);
+    if (loanResultMode.value === "payment") return estimateLoanPayment(a) - estimateLoanPayment(b);
+    return loanRecommendationScore(b) - loanRecommendationScore(a);
+  });
+});
+
+const loanSummary = computed(() => {
+  const list = visibleLoanItems.value;
+  const top = list[0];
+  const rates = list.map(loanRateValue).filter(Boolean);
+  return {
+    count: list.length,
+    bestRate: rates.length ? Math.min(...rates) : 0,
+    monthlyPayment: top ? estimateLoanPayment(top) : 0,
+    selectedCondition: `대출 · ${activeLoanType.value.label}`
+  };
+});
+
+const visibleSavingsItems = computed(() => {
+  const filtered = savingsItems.value.filter(item => {
+    if (savingsForm.productType !== "all" && normalizeSavingsType(item) !== savingsForm.productType) return false;
+    return true;
+  });
+
+  return [...filtered].sort((a, b) => {
+    if (savingsResultMode.value === "rate") return savingsRateValue(b) - savingsRateValue(a);
+    if (savingsResultMode.value === "maturity") return estimateSavingsMaturity(b) - estimateSavingsMaturity(a);
+    if (savingsResultMode.value === "easy") return savingsEaseScore(b) - savingsEaseScore(a);
+    return savingsRecommendationScore(b) - savingsRecommendationScore(a);
+  });
+});
+
+const savingsSummary = computed(() => {
+  const list = visibleSavingsItems.value;
+  const top = list[0];
+  const rates = list.map(savingsRateValue).filter(Boolean);
+  return {
+    count: list.length,
+    averageRate: rates.length ? rates.reduce((total, rate) => total + rate, 0) / rates.length : 0,
+    topMaturity: top ? estimateSavingsMaturity(top) : 0,
+    selectedCondition: `저축 · ${activeSavingsType.value.label}`
+  };
+});
+
+const topDepositItems = computed(() => visibleItems.value.slice(0, 5));
+const topLoanItems = computed(() => visibleLoanItems.value.slice(0, 5));
+const topSavingsItems = computed(() => visibleSavingsItems.value.slice(0, 5));
 
 function productTypeLabel(type) {
   if (type === "deposit") return "정기예금";
@@ -298,6 +458,357 @@ function estimateInterest(item) {
   return Math.max(0, estimateMaturity(item) - principal);
 }
 
+function loanRateValue(loan) {
+  return Number(loan.rate_min || loan.rate_avg || loan.rate_max || 0);
+}
+
+function loanLimitScore(loan) {
+  const text = `${loan.loan_limit || ""} ${loan.name || ""}`;
+  const numbers = text.match(/\d+(?:\.\d+)?/g)?.map(Number) || [];
+  const largest = numbers.length ? Math.max(...numbers) : 1;
+  if (text.includes("억")) return largest * 10000;
+  return largest;
+}
+
+function estimateLoanPayment(loan) {
+  const principal = Number(loanForm.desiredAmount || 0);
+  const years = Number(loanForm.loanTerm || 1);
+  const months = Math.max(12, years * 12);
+  const monthlyRate = loanRateValue(loan) / 100 / 12;
+  if (!monthlyRate) return Math.round(principal / months);
+  const payment = principal * monthlyRate * ((1 + monthlyRate) ** months) / (((1 + monthlyRate) ** months) - 1);
+  return Math.round(payment || 0);
+}
+
+function estimateLoanInterest(loan) {
+  const months = Math.max(12, Number(loanForm.loanTerm || 1) * 12);
+  return Math.max(0, estimateLoanPayment(loan) * months - Number(loanForm.desiredAmount || 0));
+}
+
+function loanConditionText(loan) {
+  return `${loan.name || ""} ${loan.bank_name || ""} ${loan.loan_type_label || ""} ${loan.loan_product_type || ""} ${loan.repay_type || ""} ${loan.join_member || ""} ${loan.loan_inci_expn || ""}`;
+}
+
+function loanRecommendationScore(loan) {
+  const text = loanConditionText(loan);
+  let score = 88;
+  const rate = loanRateValue(loan);
+  score += Math.max(0, 16 - rate * 2);
+  if (loan.loan_type === loanForm.loanType) score += 14;
+  if (loanForm.strategy === "rate") score += Math.max(0, 10 - rate);
+  if (loanForm.strategy === "limit") score += Math.min(12, loanLimitScore(loan) / 5000);
+  if (loanForm.strategy === "payment") score += Math.max(0, 12 - estimateLoanPayment(loan) / 200000);
+  if (loanForm.strategy === "fixed" && (text.includes("고정") || text.includes("혼합"))) score += 9;
+  if (loanForm.repayType && text.includes(loanForm.repayType.replace("상환", ""))) score += 5;
+  if (loanForm.audience === "newlywed" && loan.loan_type !== "credit") score += 6;
+  if (loanForm.audience === "starter" && rate <= 4.5) score += 5;
+  if (loanForm.audience === "business" && text.includes("사업")) score += 8;
+  if (loanForm.tags.some(tag => text.includes(tag))) score += 4;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function loanReasonTags(loan) {
+  const tags = [
+    `금리 최저 ${loanRateValue(loan).toFixed(2)}%`,
+    `대출 기간 ${Math.max(1, loanForm.loanTerm - 20)}년 ~ ${loanForm.loanTerm + 10}년`,
+    loan.repay_type || loanForm.repayType
+  ];
+  if (loan.loan_limit) tags.unshift(`최대 한도 ${loan.loan_limit}`);
+  return tags.filter(Boolean).slice(0, 4);
+}
+
+function savingsRateValue(item) {
+  return Number(item.rate_value || item.best_rate || item.rate || 0);
+}
+
+function normalizeSavingsType(item) {
+  const text = `${item.product_subtype || ""} ${item.product_type_label || ""} ${item.name || ""}`;
+  if (text.includes("자유")) return "free";
+  if (text.includes("정기") || text.includes("정액") || text.includes("매월")) return "regular";
+  if (text.includes("목돈") || text.includes("목표")) return "goal";
+  return "free";
+}
+
+function savingsTypeLabel(item) {
+  const normalized = normalizeSavingsType(item);
+  return savingsProductTypes.find(type => type.value === normalized)?.label || item.product_type_label || "저축";
+}
+
+function savingsConditionText(item) {
+  return `${item.name || ""} ${item.bank_name || ""} ${item.product_subtype || ""} ${item.join_way || ""} ${item.join_member || ""} ${item.special_condition || ""} ${item.etc_note || ""}`;
+}
+
+function savingsEaseScore(item) {
+  const text = savingsConditionText(item);
+  let score = 58;
+  if (text.includes("자유")) score += 14;
+  if (text.includes("자동이체")) score += 8;
+  if (text.includes("비대면") || text.includes("인터넷") || text.includes("스마트")) score += 8;
+  if (!text.includes("급여") && !text.includes("카드") && !text.includes("실적")) score += 6;
+  return Math.min(score, 100);
+}
+
+function savingsRecommendationScore(item) {
+  const text = savingsConditionText(item);
+  const rate = savingsRateValue(item);
+  let score = 70 + Math.min(18, rate * 4);
+
+  if (savingsForm.productType !== "all" && normalizeSavingsType(item) === savingsForm.productType) score += 10;
+  if (savingsForm.strategy === "rate") score += Math.min(10, rate * 2);
+  if (savingsForm.strategy === "flexible" && text.includes("자유")) score += 11;
+  if (savingsForm.strategy === "target") score += Math.max(0, 12 - Math.abs(savingsForm.periodMonths - 12) / 2);
+  if (savingsForm.strategy === "stable") score += Math.round(savingsEaseScore(item) / 12);
+  if (savingsForm.audience === "youth" && (text.includes("청년") || text.includes("첫"))) score += 8;
+  if (savingsForm.audience === "couple" && savingsForm.purpose.includes("목돈")) score += 5;
+  if (savingsForm.tags.some(tag => text.includes(tag.replace(" 가능", "")))) score += 4;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function estimateSavingsMaturity(item) {
+  const months = Number(savingsForm.periodMonths || 12);
+  const annualRate = savingsRateValue(item) / 100;
+  const principal = Number(savingsForm.monthlyAmount || 0) * months;
+  const interest = Number(savingsForm.monthlyAmount || 0) * annualRate * ((months + 1) / 2);
+  return principal + interest * 0.846;
+}
+
+function estimateSavingsInterest(item) {
+  const principal = Number(savingsForm.monthlyAmount || 0) * Number(savingsForm.periodMonths || 12);
+  return Math.max(0, estimateSavingsMaturity(item) - principal);
+}
+
+function savingsReasonTags(item) {
+  const tags = [
+    `최고 ${savingsRateValue(item).toFixed(2)}%`,
+    `${savingsForm.periodMonths}개월`,
+    savingsTypeLabel(item),
+    item.join_way || "가입방법 확인"
+  ];
+  if (item.special_condition) tags.push("우대조건 확인");
+  return tags.filter(Boolean).slice(0, 4);
+}
+
+function getAiExplanation(type, id) {
+  return aiExplanations[type]?.[String(id)] || null;
+}
+
+function clearAiExplanations(type) {
+  aiExplanations[type] = {};
+  aiExplanationMeta[type] = { usedAi: false, model: null };
+}
+
+function localAiFallback(type, list) {
+  const isLoan = type === "loan";
+  const isSavings = type === "savings";
+  return list.map(item => {
+    const id = isLoan || isSavings ? item.product_code : item.product.id;
+    return {
+      id: String(id),
+      ai_reason: isLoan
+        ? "선택한 조건에서 금리와 월 예상 상환액 기준으로 비교 상위에 있어 추천합니다."
+        : isSavings
+          ? "선택한 저축 조건에서 수익률, 납입 방식, 예상 만기 금액을 비교했을 때 적합해 추천합니다."
+          : "선택한 조건에서 금리와 예상 수령액이 비교적 우수해 추천합니다.",
+      ai_summary_tags: isLoan
+        ? ["상환 부담 비교", "금리 기준", "조건 적합"]
+        : isSavings
+          ? ["목돈 마련 적합", "저축 조건 비교", "조건 적합"]
+          : ["금리 우수", "예상 수령액", "조건 적합"],
+      caution: ""
+    };
+  });
+}
+
+function buildDepositAiPayload() {
+  return {
+    recommendation_type: "deposit",
+    user_conditions: {
+      target: activeAudience.value.label,
+      product_type: productTypes.find(type => type.value === form.productType)?.label || "전체",
+      monthly_amount: form.monthlySaving,
+      deposit_amount: form.depositAmount,
+      period_months: form.preferredTerm,
+      saving_goal: form.purpose,
+      risk_preference: form.riskTolerance
+    },
+    recommendations: topDepositItems.value.map(item => ({
+      id: String(item.product.id),
+      name: item.product.name,
+      bank_name: item.product.bank_name,
+      product_type: productTypeLabel(item.product.product_type),
+      rate: Number(item.option.intr_rate2 || 0),
+      period: Number(item.option.save_term || 0),
+      expected_amount: Math.round(estimateMaturity(item)),
+      score: recommendationScore(item),
+      conditions: item.reasons.slice(0, 3)
+    }))
+  };
+}
+
+function buildLoanAiPayload() {
+  return {
+    recommendation_type: "loan",
+    user_conditions: {
+      target: activeLoanAudience.value.label,
+      loan_type: activeLoanType.value.label,
+      loan_amount: loanForm.desiredAmount,
+      loan_period_years: loanForm.loanTerm,
+      repayment_type: loanForm.repayType,
+      income_range: loanForm.incomeRange,
+      credit_grade: creditGrades.find(grade => grade.value === loanForm.creditGrade)?.label || loanForm.creditGrade,
+      priority: loanStrategies.find(strategy => strategy.value === loanForm.strategy)?.label || loanForm.strategy,
+      tags: loanForm.tags
+    },
+    recommendations: topLoanItems.value.map(loan => ({
+      id: String(loan.product_code),
+      name: loan.name,
+      bank_name: loan.bank_name,
+      loan_type: loan.loan_type_label,
+      min_rate: loanRateValue(loan),
+      max_limit: loan.loan_limit || "",
+      monthly_payment: estimateLoanPayment(loan),
+      score: loanRecommendationScore(loan),
+      repayment_type: loan.repay_type || loanForm.repayType
+    }))
+  };
+}
+
+function buildSavingsAiPayload() {
+  return {
+    recommendation_type: "saving",
+    user_conditions: {
+      target: activeSavingsAudience.value.label,
+      saving_product_type: activeSavingsType.value.label,
+      monthly_amount: savingsForm.monthlyAmount,
+      target_amount: savingsForm.targetAmount,
+      period_months: savingsForm.periodMonths,
+      saving_goal: savingsForm.purpose,
+      preference: savingsPreferences.find(item => item.value === savingsForm.preference)?.label || savingsForm.preference,
+      extra_conditions: savingsForm.tags
+    },
+    recommendations: topSavingsItems.value.map(item => ({
+      id: String(item.product_code),
+      name: item.name,
+      bank_name: item.bank_name,
+      product_type: savingsTypeLabel(item),
+      rate: savingsRateValue(item),
+      period: savingsForm.periodMonths,
+      expected_amount: Math.round(estimateSavingsMaturity(item)),
+      expected_interest: Math.round(estimateSavingsInterest(item)),
+      score: savingsRecommendationScore(item),
+      conditions: savingsReasonTags(item)
+    }))
+  };
+}
+
+async function loadAiExplanations(type) {
+  const currentList = type === "loan" ? topLoanItems.value : type === "savings" ? topSavingsItems.value : topDepositItems.value;
+  if (!currentList.length) return;
+
+  aiExplanationLoading.value = true;
+  aiExplanationError.value = "";
+  clearAiExplanations(type);
+  try {
+    const payload = type === "loan" ? buildLoanAiPayload() : type === "savings" ? buildSavingsAiPayload() : buildDepositAiPayload();
+    const data = await apiFetch("/recommendations/ai-explain/", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    aiExplanationMeta[type] = { usedAi: Boolean(data.used_ai), model: data.model || null };
+    const mapped = {};
+    (data.items || []).forEach(item => {
+      mapped[String(item.id)] = item;
+    });
+    aiExplanations[type] = mapped;
+  } catch (err) {
+    aiExplanationError.value = "AI 추천 이유를 불러오지 못해 기본 설명을 표시합니다.";
+    const fallback = {};
+    localAiFallback(type, currentList).forEach(item => {
+      fallback[String(item.id)] = item;
+    });
+    aiExplanations[type] = fallback;
+  } finally {
+    aiExplanationLoading.value = false;
+  }
+}
+
+function formatLoanAmount(value) {
+  const amount = Number(value || 0);
+  if (amount >= 100000000) {
+    const eok = amount / 100000000;
+    return `${Number.isInteger(eok) ? eok : eok.toFixed(1)}억원`;
+  }
+  if (amount >= 10000) return `${Math.round(amount / 10000).toLocaleString("ko-KR")}만원`;
+  return formatMoney(amount);
+}
+
+function changeLoanValue(field, amount, minimum) {
+  loanForm[field] = Math.max(minimum, Number(loanForm[field] || 0) + amount);
+}
+
+function toggleLoanTag(tag) {
+  if (loanForm.tags.includes(tag)) {
+    loanForm.tags = loanForm.tags.filter(item => item !== tag);
+  } else {
+    loanForm.tags.push(tag);
+  }
+}
+
+function changeSavingsValue(field, amount, minimum) {
+  savingsForm[field] = Math.max(minimum, Number(savingsForm[field] || 0) + amount);
+}
+
+function toggleSavingsTag(tag) {
+  if (savingsForm.tags.includes(tag)) {
+    savingsForm.tags = savingsForm.tags.filter(item => item !== tag);
+  } else {
+    savingsForm.tags.push(tag);
+  }
+}
+
+async function loadLoanRecommendations() {
+  loanError.value = "";
+  try {
+    const data = await apiFetch("/loans/?type=all");
+    loanItems.value = data.results || [];
+  } catch (err) {
+    loanError.value = err.message || "대출 추천 데이터를 불러오지 못했습니다.";
+  }
+}
+
+async function loadSavingsRecommendations() {
+  savingsError.value = "";
+  try {
+    const data = await apiFetch("/savings/");
+    savingsItems.value = data.results || data || [];
+  } catch (err) {
+    savingsError.value = err.message || "저축 추천 데이터를 불러오지 못했습니다.";
+  }
+}
+
+async function applyLoanDiagnosis() {
+  saving.value = true;
+  loanError.value = "";
+  try {
+    if (!loanItems.value.length) await loadLoanRecommendations();
+    await loadAiExplanations("loan");
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function applySavingsDiagnosis() {
+  saving.value = true;
+  savingsError.value = "";
+  try {
+    if (!savingsItems.value.length) await loadSavingsRecommendations();
+    await loadAiExplanations("savings");
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function applyDiagnosis() {
   saving.value = true;
   error.value = "";
@@ -312,6 +823,7 @@ async function applyDiagnosis() {
       });
     }
     await loadRecommendations();
+    await loadAiExplanations("deposit");
   } catch (err) {
     error.value = err.message || "추천 조건을 반영하지 못했습니다.";
   } finally {
@@ -328,6 +840,9 @@ onMounted(async () => {
     form.riskTolerance = auth.user.risk_tolerance || form.riskTolerance;
   }
   await loadRecommendations();
+  await loadLoanRecommendations();
+  await loadSavingsRecommendations();
+  loadAiExplanations("deposit");
 });
 </script>
 
@@ -337,8 +852,8 @@ onMounted(async () => {
       <div class="section-head recommend-head-local">
         <div>
           <!-- <p class="eyebrow">FinPick recommendation</p> -->
-          <h1>예적금 추천</h1>
-          <p>금리만 높은 상품이 아니라, 내 조건에서 실제로 유리한 예적금 상품을 비교합니다.</p>
+          <h1>금융상품 추천</h1>
+          <p>금리, 한도, 상환 부담을 기준으로 내 조건에 맞는 금융상품을 비교합니다.</p>
         </div>
         <div class="head-actions-local">
           <RouterLink class="btn primary" to="/recommend-profile">나의 정보 입력하기</RouterLink>
@@ -349,13 +864,25 @@ onMounted(async () => {
 
       <StatusBlock :loading="loading" :error="error" />
 
+      <div class="service-tabs-local" role="tablist" aria-label="추천 서비스 선택">
+        <button type="button" :class="{ active: activeRecommendationType === 'deposit' }" @click="activeRecommendationType = 'deposit'">
+          <span aria-hidden="true">▥</span> 예적금 추천 서비스
+        </button>
+        <button type="button" :class="{ active: activeRecommendationType === 'loan' }" @click="activeRecommendationType = 'loan'">
+          <span aria-hidden="true">⌂</span> 대출 추천 서비스
+        </button>
+        <button type="button" :class="{ active: activeRecommendationType === 'savings' }" @click="activeRecommendationType = 'savings'">
+          <span aria-hidden="true">◇</span> 저축 추천 서비스
+        </button>
+      </div>
+
       <section class="service-panel-local">
         <div class="service-copy-local">
           <span>선택한 추천 서비스</span>
-          <h2>{{ activeAudience.title }}</h2>
-          <p>{{ activeAudience.description }}</p>
+          <h2>{{ activeRecommendationType === "deposit" ? activeAudience.title : activeRecommendationType === "loan" ? activeLoanAudience.title : activeSavingsAudience.title }}</h2>
+          <p>{{ activeRecommendationType === "deposit" ? activeAudience.description : activeRecommendationType === "loan" ? activeLoanAudience.description : activeSavingsAudience.description }}</p>
         </div>
-        <div class="service-summary-local">
+        <div v-if="activeRecommendationType === 'deposit'" class="service-summary-local">
           <article>
             <div class="summary-label-local">
               <span class="summary-icon-local" aria-hidden="true">↗</span>
@@ -378,6 +905,59 @@ onMounted(async () => {
             <strong>{{ activeAudience.label }} · {{ productTypes.find(type => type.value === form.productType)?.label }}</strong>
           </article>
         </div>
+        <div v-else-if="activeRecommendationType === 'loan'" class="service-summary-local">
+          <!-- <article>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">♙</span>
+              <span>추천 대상</span>
+            </div>
+            <strong>{{ loanSummary.count }}개</strong>
+          </article> -->
+          <article>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">%</span>
+              <span>최저 금리</span>
+            </div>
+            <strong>{{ loanSummary.bestRate.toFixed(2) }}%</strong>
+          </article>
+          <article>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">₩</span>
+              <span>월 예상 상환액</span>
+            </div>
+            <strong>{{ formatMoney(loanSummary.monthlyPayment) }}</strong>
+          </article>
+          <article>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">⌘</span>
+              <span>선택 조건</span>
+            </div>
+            <strong>{{ loanSummary.selectedCondition }}</strong>
+          </article>
+        </div>
+        <div v-else class="service-summary-local">
+           <article>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">%</span>
+              <span>평균 수익률</span>
+            </div>
+            <strong>{{ savingsSummary.averageRate.toFixed(2) }}%</strong>
+          </article>
+          <article>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">₩</span>
+              <span>예상 만기 금액</span>
+            </div>
+            <strong>{{ formatMoney(savingsSummary.topMaturity) }}</strong>
+          </article>
+          <article>
+            <div class="summary-label-local">
+              <span class="summary-icon-local" aria-hidden="true">⌘</span>
+              <span>선택 조건</span>
+            </div>
+            <strong>{{ savingsSummary.selectedCondition }}</strong>
+          </article>
+        </div>
       </section>
 
       <section class="dashboard-section">
@@ -387,7 +967,7 @@ onMounted(async () => {
         </div>
 
         <div class="workspace-local">
-          <article class="content-panel filter-panel-local">
+          <article v-if="activeRecommendationType === 'deposit'" class="content-panel filter-panel-local">
             <div class="condition-control-grid-local">
               <div class="control-group-local">
                 <h3>추천 서비스</h3>
@@ -505,6 +1085,234 @@ onMounted(async () => {
               {{ saving ? "조건 반영 중" : "내 조건으로 추천 보기" }}
             </button>
           </article>
+
+          <article v-else-if="activeRecommendationType === 'loan'" class="content-panel filter-panel-local">
+            <div class="condition-control-grid-local">
+              <div class="control-group-local">
+                <h3>추천 서비스</h3>
+                <div class="segment-grid-local audience">
+                  <button
+                    v-for="audience in loanAudiences"
+                    :key="audience.value"
+                    type="button"
+                    :class="{ active: loanForm.audience === audience.value }"
+                    @click="loanForm.audience = audience.value"
+                  >
+                    <span>{{ audience.label }}</span>
+                    <small>{{ audience.count }}개</small>
+                  </button>
+                </div>
+              </div>
+
+              <div class="control-group-local">
+                <h3>상품 유형</h3>
+                <div class="segment-grid-local three">
+                  <button
+                    v-for="type in loanProductTypes"
+                    :key="type.value"
+                    type="button"
+                    :class="{ active: loanForm.loanType === type.value }"
+                    @click="loanForm.loanType = type.value"
+                  >
+                    <span>{{ type.label }}</span>
+                    <small>{{ type.description }}</small>
+                  </button>
+                </div>
+              </div>
+
+              <div class="control-group-local">
+                <h3>계산 방식</h3>
+                <div class="segment-grid-local two loan-strategy-grid-local">
+                  <button
+                    v-for="strategy in loanStrategies"
+                    :key="strategy.value"
+                    type="button"
+                    :class="{ active: loanForm.strategy === strategy.value }"
+                    @click="loanForm.strategy = strategy.value"
+                  >
+                    <span>{{ strategy.label }}</span>
+                    <small>{{ strategy.description }}</small>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="input-grid-local loan-input-grid-local">
+              <article class="step-box-local">
+                <span class="field-label-local">희망 대출 금액</span>
+                <div>
+                  <button type="button" @click="changeLoanValue('desiredAmount', -10000000, 10000000)">-</button>
+                  <strong>{{ formatLoanAmount(loanForm.desiredAmount) }}</strong>
+                  <button type="button" @click="changeLoanValue('desiredAmount', 10000000, 10000000)">+</button>
+                </div>
+              </article>
+
+              <article class="step-box-local">
+                <span class="field-label-local">대출 기간</span>
+                <div>
+                  <button type="button" @click="changeLoanValue('loanTerm', -1, 1)">-</button>
+                  <strong>{{ loanForm.loanTerm }}년</strong>
+                  <button type="button" @click="changeLoanValue('loanTerm', 1, 1)">+</button>
+                </div>
+              </article>
+
+              <label class="select-field-local">
+                <span class="field-label-local">상환 방식</span>
+                <select v-model="loanForm.repayType">
+                  <option v-for="type in repayTypes" :key="type" :value="type">{{ type }}</option>
+                </select>
+              </label>
+
+              <label class="select-field-local">
+                <span class="field-label-local">소득 구간</span>
+                <select v-model="loanForm.incomeRange">
+                  <option v-for="range in incomeRanges" :key="range" :value="range">{{ range }}</option>
+                </select>
+              </label>
+
+              <label class="select-field-local">
+                <span class="field-label-local">신용도</span>
+                <select v-model="loanForm.creditGrade">
+                  <option v-for="grade in creditGrades" :key="grade.value" :value="grade.value">{{ grade.label }}</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="quick-choice-local">
+              <span>추가 조건</span>
+              <div class="purpose-row-local">
+                <button
+                  v-for="tag in loanTags"
+                  :key="tag"
+                  type="button"
+                  :class="{ active: loanForm.tags.includes(tag) }"
+                  @click="toggleLoanTag(tag)"
+                >
+                  ✓ {{ tag }}
+                </button>
+              </div>
+            </div>
+
+            <button class="btn primary full" type="button" :disabled="saving" @click="applyLoanDiagnosis">
+              <span aria-hidden="true">✦</span>
+              {{ saving ? "조건 반영 중" : "내 조건으로 추천 보기" }}
+            </button>
+          </article>
+
+          <article v-else class="content-panel filter-panel-local">
+            <div class="condition-control-grid-local">
+              <div class="control-group-local">
+                <h3>추천 서비스</h3>
+                <div class="segment-grid-local audience">
+                  <button
+                    v-for="audience in savingsAudiences"
+                    :key="audience.value"
+                    type="button"
+                    :class="{ active: savingsForm.audience === audience.value }"
+                    @click="savingsForm.audience = audience.value"
+                  >
+                    <span>{{ audience.label }}</span>
+                    <small>{{ audience.count }}개</small>
+                  </button>
+                </div>
+              </div>
+
+              <div class="control-group-local">
+                <h3>상품 유형</h3>
+                <div class="segment-grid-local three savings-type-grid-local">
+                  <button
+                    v-for="type in savingsProductTypes"
+                    :key="type.value"
+                    type="button"
+                    :class="{ active: savingsForm.productType === type.value }"
+                    @click="savingsForm.productType = type.value"
+                  >
+                    <span>{{ type.label }}</span>
+                    <small>{{ type.description }}</small>
+                  </button>
+                </div>
+              </div>
+
+              <div class="control-group-local">
+                <h3>계산 방식</h3>
+                <div class="segment-grid-local two loan-strategy-grid-local">
+                  <button
+                    v-for="strategy in savingsStrategies"
+                    :key="strategy.value"
+                    type="button"
+                    :class="{ active: savingsForm.strategy === strategy.value }"
+                    @click="savingsForm.strategy = strategy.value"
+                  >
+                    <span>{{ strategy.label }}</span>
+                    <small>{{ strategy.description }}</small>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="input-grid-local loan-input-grid-local">
+              <article class="step-box-local">
+                <span class="field-label-local">월 저축 가능 금액</span>
+                <div>
+                  <button type="button" @click="changeSavingsValue('monthlyAmount', -100000, 0)">-</button>
+                  <strong>{{ formatShortMoney(savingsForm.monthlyAmount) }}</strong>
+                  <button type="button" @click="changeSavingsValue('monthlyAmount', 100000, 0)">+</button>
+                </div>
+              </article>
+
+              <article class="step-box-local">
+                <span class="field-label-local">목표 금액</span>
+                <div>
+                  <button type="button" @click="changeSavingsValue('targetAmount', -1000000, 1000000)">-</button>
+                  <strong>{{ formatShortMoney(savingsForm.targetAmount) }}</strong>
+                  <button type="button" @click="changeSavingsValue('targetAmount', 1000000, 1000000)">+</button>
+                </div>
+              </article>
+
+              <article class="step-box-local">
+                <span class="field-label-local">희망 기간</span>
+                <div>
+                  <button type="button" @click="changeSavingsValue('periodMonths', -6, 6)">-</button>
+                  <strong>{{ savingsForm.periodMonths }}개월</strong>
+                  <button type="button" @click="changeSavingsValue('periodMonths', 6, 6)">+</button>
+                </div>
+              </article>
+
+              <label class="select-field-local">
+                <span class="field-label-local">저축 목적</span>
+                <select v-model="savingsForm.purpose">
+                  <option v-for="purpose in savingsPurposes" :key="purpose" :value="purpose">{{ purpose }}</option>
+                </select>
+              </label>
+
+              <label class="select-field-local">
+                <span class="field-label-local">추천 성향</span>
+                <select v-model="savingsForm.preference">
+                  <option v-for="preference in savingsPreferences" :key="preference.value" :value="preference.value">{{ preference.label }}</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="quick-choice-local">
+              <span>추가 조건</span>
+              <div class="purpose-row-local">
+                <button
+                  v-for="tag in savingsTags"
+                  :key="tag"
+                  type="button"
+                  :class="{ active: savingsForm.tags.includes(tag) }"
+                  @click="toggleSavingsTag(tag)"
+                >
+                  ✓ {{ tag }}
+                </button>
+              </div>
+            </div>
+
+            <button class="btn primary full" type="button" :disabled="saving" @click="applySavingsDiagnosis">
+              <span aria-hidden="true">✦</span>
+              {{ saving ? "조건 반영 중" : "내 조건으로 추천 보기" }}
+            </button>
+          </article>
         </div>
       </section>
 
@@ -512,21 +1320,37 @@ onMounted(async () => {
         <div class="result-head-local">
           <div class="section-head">
             <h2>추천 결과 TOP 5</h2>
-            <p>추천점수, 만기 수령액, 금리, 우대조건 쉬운순으로 비교할 수 있습니다.</p>
+            <p>{{ activeRecommendationType === "deposit" ? "추천점수, 만기 수령액, 금리, 우대조건 쉬운순으로 비교할 수 있습니다." : activeRecommendationType === "loan" ? "추천점수, 한도, 금리, 월상환액 기준으로 비교할 수 있습니다." : "추천점수, 수익률, 만기금액, 조건 쉬운순으로 비교할 수 있습니다." }}</p>
           </div>
-          <div class="sort-tabs-local">
+          <div v-if="activeRecommendationType === 'deposit'" class="sort-tabs-local">
             <button type="button" :class="{ active: resultMode === 'score' }" @click="resultMode = 'score'">추천순</button>
             <button type="button" :class="{ active: resultMode === 'maturity' }" @click="resultMode = 'maturity'">수령액순</button>
             <button type="button" :class="{ active: resultMode === 'rate' }" @click="resultMode = 'rate'">금리순</button>
             <button type="button" :class="{ active: resultMode === 'easy' }" @click="resultMode = 'easy'">조건 쉬운순</button>
           </div>
+          <div v-else-if="activeRecommendationType === 'loan'" class="sort-tabs-local">
+            <button type="button" :class="{ active: loanResultMode === 'score' }" @click="loanResultMode = 'score'">추천순</button>
+            <button type="button" :class="{ active: loanResultMode === 'limit' }" @click="loanResultMode = 'limit'">한도순</button>
+            <button type="button" :class="{ active: loanResultMode === 'rate' }" @click="loanResultMode = 'rate'">금리순</button>
+            <button type="button" :class="{ active: loanResultMode === 'payment' }" @click="loanResultMode = 'payment'">월상환액순</button>
+          </div>
+          <div v-else class="sort-tabs-local">
+            <button type="button" :class="{ active: savingsResultMode === 'score' }" @click="savingsResultMode = 'score'">추천순</button>
+            <button type="button" :class="{ active: savingsResultMode === 'maturity' }" @click="savingsResultMode = 'maturity'">만기금액순</button>
+            <button type="button" :class="{ active: savingsResultMode === 'rate' }" @click="savingsResultMode = 'rate'">금리순</button>
+            <button type="button" :class="{ active: savingsResultMode === 'easy' }" @click="savingsResultMode = 'easy'">조건 쉬운순</button>
+          </div>
         </div>
 
-        <div v-if="!loading && !visibleItems.length" class="status-block">조건에 맞는 상품이 없습니다.</div>
+        <div v-if="activeRecommendationType === 'deposit' && !loading && !visibleItems.length" class="status-block">조건에 맞는 상품이 없습니다.</div>
+        <div v-if="activeRecommendationType === 'loan' && loanError" class="status-block warning">{{ loanError }}</div>
+        <div v-else-if="activeRecommendationType === 'loan' && !visibleLoanItems.length" class="status-block">조건에 맞는 대출 상품이 없습니다. 조건을 완화하거나 다른 대출 유형을 선택해보세요.</div>
+        <div v-if="activeRecommendationType === 'savings' && savingsError" class="status-block warning">{{ savingsError }}</div>
+        <div v-else-if="activeRecommendationType === 'savings' && !visibleSavingsItems.length" class="status-block">조건에 맞는 저축 상품이 없습니다. 조건을 완화하거나 다른 저축 유형을 선택해보세요.</div>
 
-        <div class="result-list-local">
+        <div v-if="activeRecommendationType === 'deposit'" class="result-list-local">
           <RouterLink
-            v-for="(item, index) in visibleItems.slice(0, 5)"
+            v-for="(item, index) in topDepositItems"
             :key="`${item.product.id}-${item.option.id}`"
             class="result-card-local"
             :class="{ featured: index === 0 }"
@@ -547,11 +1371,102 @@ onMounted(async () => {
               <div>
                 <em v-for="reason in item.reasons.slice(0, 2)" :key="reason">{{ reason }}</em>
               </div>
+              <section class="ai-reason-local">
+                <span>AI 추천 이유</span>
+                <p v-if="aiExplanationLoading && !getAiExplanation('deposit', item.product.id)">AI가 추천 이유를 분석하고 있습니다...</p>
+                <p v-else>{{ getAiExplanation('deposit', item.product.id)?.ai_reason || "선택한 조건에서 금리와 예상 수령액이 비교적 우수해 추천합니다." }}</p>
+                <div v-if="getAiExplanation('deposit', item.product.id)?.ai_summary_tags?.length" class="ai-tags-local">
+                  <small v-for="tag in getAiExplanation('deposit', item.product.id).ai_summary_tags" :key="tag">{{ tag }}</small>
+                </div>
+                <small v-if="getAiExplanation('deposit', item.product.id)?.caution" class="ai-caution-local">{{ getAiExplanation('deposit', item.product.id).caution }}</small>
+              </section>
             </div>
             <div class="result-money-local">
               <span>세후 예상 수령액</span>
               <strong>{{ formatMoney(estimateMaturity(item)) }}</strong>
               <small>예상 이자 + {{ formatMoney(estimateInterest(item)) }}</small>
+            </div>
+          </RouterLink>
+        </div>
+
+        <div v-else-if="activeRecommendationType === 'loan'" class="result-list-local">
+          <RouterLink
+            v-for="(loan, index) in topLoanItems"
+            :key="`${loan.loan_type}-${loan.product_code}`"
+            class="result-card-local loan-result-card-local"
+            :class="{ featured: index === 0 }"
+            :to="{ name: 'loan-detail', params: { type: loan.loan_type, code: loan.product_code } }"
+          >
+            <span class="rank-local">{{ index + 1 }}</span>
+            <div class="product-main-local">
+              <div class="product-heading-local">
+                <span class="product-bank-local">{{ loan.bank_name }}</span>
+                <span class="product-type-local">{{ loan.loan_type_label }}</span>
+              </div>
+              <h3>{{ loan.name }}</h3>
+              <p class="product-meta-local">
+                <span>금리 최저 {{ loanRateValue(loan).toFixed(2) }}%</span>
+                <span>추천점수 {{ loanRecommendationScore(loan) }}점</span>
+                <span>대출 기간 {{ Math.max(1, loanForm.loanTerm - 20) }}년 ~ {{ loanForm.loanTerm + 10 }}년</span>
+              </p>
+              <div>
+                <em v-for="reason in loanReasonTags(loan)" :key="reason">{{ reason }}</em>
+              </div>
+              <section class="ai-reason-local">
+                <span>AI 추천 이유</span>
+                <p v-if="aiExplanationLoading && !getAiExplanation('loan', loan.product_code)">AI가 추천 이유를 분석하고 있습니다...</p>
+                <p v-else>{{ getAiExplanation('loan', loan.product_code)?.ai_reason || "선택한 조건에서 금리와 월 예상 상환액 기준으로 비교 상위에 있어 추천합니다." }}</p>
+                <div v-if="getAiExplanation('loan', loan.product_code)?.ai_summary_tags?.length" class="ai-tags-local">
+                  <small v-for="tag in getAiExplanation('loan', loan.product_code).ai_summary_tags" :key="tag">{{ tag }}</small>
+                </div>
+                <small v-if="getAiExplanation('loan', loan.product_code)?.caution" class="ai-caution-local">{{ getAiExplanation('loan', loan.product_code).caution }}</small>
+              </section>
+            </div>
+            <div class="result-money-local">
+              <span>월 예상 상환액</span>
+              <strong>{{ formatMoney(estimateLoanPayment(loan)) }}</strong>
+              <small>총 이자 약 {{ formatLoanAmount(estimateLoanInterest(loan)) }}</small>
+            </div>
+          </RouterLink>
+        </div>
+
+        <div v-else class="result-list-local">
+          <RouterLink
+            v-for="(item, index) in topSavingsItems"
+            :key="item.product_code"
+            class="result-card-local savings-result-card-local"
+            :class="{ featured: index === 0 }"
+            :to="{ name: 'savings-detail', params: { code: item.product_code } }"
+          >
+            <span class="rank-local">{{ index + 1 }}</span>
+            <div class="product-main-local">
+              <div class="product-heading-local">
+                <span class="product-bank-local">{{ item.bank_name }}</span>
+                <span class="product-type-local">{{ savingsTypeLabel(item) }}</span>
+              </div>
+              <h3>{{ item.name }}</h3>
+              <p class="product-meta-local">
+                <span>최고 {{ savingsRateValue(item).toFixed(2) }}%</span>
+                <span>추천점수 {{ savingsRecommendationScore(item) }}점</span>
+                <span>{{ savingsForm.periodMonths }}개월</span>
+              </p>
+              <div>
+                <em v-for="reason in savingsReasonTags(item)" :key="reason">{{ reason }}</em>
+              </div>
+              <section class="ai-reason-local">
+                <span>AI 추천 이유</span>
+                <p v-if="aiExplanationLoading && !getAiExplanation('savings', item.product_code)">AI가 추천 이유를 분석하고 있습니다...</p>
+                <p v-else>{{ getAiExplanation('savings', item.product_code)?.ai_reason || "선택한 저축 조건에서 수익률과 예상 만기 금액 기준으로 비교 상위에 있어 추천합니다." }}</p>
+                <div v-if="getAiExplanation('savings', item.product_code)?.ai_summary_tags?.length" class="ai-tags-local">
+                  <small v-for="tag in getAiExplanation('savings', item.product_code).ai_summary_tags" :key="tag">{{ tag }}</small>
+                </div>
+                <small v-if="getAiExplanation('savings', item.product_code)?.caution" class="ai-caution-local">{{ getAiExplanation('savings', item.product_code).caution }}</small>
+              </section>
+            </div>
+            <div class="result-money-local">
+              <span>예상 만기 금액</span>
+              <strong>{{ formatMoney(estimateSavingsMaturity(item)) }}</strong>
+              <small>예상 이자 + {{ formatMoney(estimateSavingsInterest(item)) }}</small>
             </div>
           </RouterLink>
         </div>
@@ -591,6 +1506,38 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
+.service-tabs-local {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .25rem;
+  margin: 1rem 0;
+  border: 1px solid #dbe6f3;
+  border-radius: 12px;
+  background: #edf2f8;
+  padding: .25rem;
+}
+
+.service-tabs-local button {
+  min-height: 48px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #526780;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.service-tabs-local button.active {
+  border-color: #9fc1ff;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, .08);
+  color: #196ae9;
+}
+
+.service-tabs-local span {
+  margin-right: .35rem;
+}
+
 .service-panel-local {
   display: grid;
   grid-template-columns: minmax(260px, .8fr) minmax(0, 1.2fr);
@@ -627,6 +1574,10 @@ onMounted(async () => {
   display: grid;
   gap: .75rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.service-summary-local.loan-summary-local {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .service-summary-local article {
@@ -694,6 +1645,10 @@ onMounted(async () => {
 
 .segment-grid-local.three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.savings-type-grid-local {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .segment-grid-local button,
@@ -906,6 +1861,7 @@ onMounted(async () => {
   .segment-grid-local.audience,
   .segment-grid-local.two,
   .segment-grid-local.three,
+  .savings-type-grid-local,
   .input-grid-local {
     grid-template-columns: 1fr;
   }
@@ -1360,6 +2316,56 @@ onMounted(async () => {
   font-size: .73rem;
 }
 
+.ai-reason-local {
+  display: grid !important;
+  gap: .35rem !important;
+  margin-top: .75rem !important;
+  border: 1px solid #dfeaff;
+  border-radius: 12px;
+  background: #f7fbff;
+  padding: .72rem .82rem;
+}
+
+.ai-reason-local > span {
+  color: #176be9;
+  font-size: .76rem;
+  font-weight: 900;
+}
+
+.ai-reason-local p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: #405773;
+  font-size: .8rem;
+  font-weight: 750;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.ai-tags-local {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: .35rem !important;
+  margin-top: 0 !important;
+}
+
+.ai-tags-local small {
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #246ce5;
+  font-size: .68rem;
+  font-weight: 900;
+  padding: .18rem .45rem;
+}
+
+.ai-caution-local {
+  color: #7c8797;
+  font-size: .7rem;
+  font-weight: 800;
+}
+
 .result-money-local {
   min-width: 230px;
   justify-items: start;
@@ -1384,10 +2390,38 @@ onMounted(async () => {
   font-size: .82rem;
 }
 
+.loan-summary-local article {
+  min-height: 104px;
+}
+
+.loan-strategy-grid-local {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.loan-input-grid-local {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.loan-input-grid-local .select-field-local {
+  min-height: 104px;
+}
+
+.loan-result-card-local .product-type-local {
+  background: #e8f1ff;
+  color: #1f66d6;
+}
+
 @media (max-width: 980px) {
   .service-panel-local {
     grid-template-columns: 1fr;
     gap: 1.2rem;
+  }
+
+  .service-summary-local.loan-summary-local,
+  .loan-strategy-grid-local,
+  .savings-type-grid-local,
+  .loan-input-grid-local {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
   .result-card-local {
@@ -1415,9 +2449,13 @@ onMounted(async () => {
   }
 
   .service-summary-local,
+  .service-summary-local.loan-summary-local,
   .condition-control-grid-local,
-  .input-grid-local {
-    grid-template-columns: 1fr;
+  .input-grid-local,
+  .loan-strategy-grid-local,
+  .savings-type-grid-local,
+  .loan-input-grid-local {
+    grid-template-columns: 1fr !important;
   }
 
   .quick-choice-local {

@@ -1,7 +1,7 @@
 ﻿from django.contrib.auth import authenticate
 from rest_framework import serializers
 
-from .models import Comment, FinancialProduct, Post, RateOption, User
+from .models import Comment, FavoriteLoan, FavoriteSavings, FinancialProduct, Post, RateOption, User
 
 
 class RateOptionSerializer(serializers.ModelSerializer):
@@ -32,10 +32,60 @@ class ProductDetailSerializer(ProductListSerializer):
         )
 
 
+class FavoriteLoanSerializer(serializers.ModelSerializer):
+    favorite_key = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FavoriteLoan
+        fields = (
+            "id",
+            "favorite_key",
+            "loan_type",
+            "product_code",
+            "name",
+            "bank_name",
+            "loan_type_label",
+            "rate_min",
+            "loan_limit",
+            "repay_type",
+            "join_member",
+        )
+
+    def get_favorite_key(self, obj):
+        return f"loan:{obj.loan_type}:{obj.product_code}"
+
+
+class FavoriteSavingsSerializer(serializers.ModelSerializer):
+    favorite_key = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FavoriteSavings
+        fields = (
+            "id",
+            "favorite_key",
+            "product_code",
+            "product_type_label",
+            "product_subtype",
+            "name",
+            "bank_name",
+            "rate_value",
+            "rate_label",
+            "join_way",
+            "join_member",
+            "special_condition",
+            "etc_note",
+        )
+
+    def get_favorite_key(self, obj):
+        return f"savings:{obj.product_code}"
+
+
 class UserSerializer(serializers.ModelSerializer):
     display_name = serializers.CharField(read_only=True)
     has_usable_password = serializers.SerializerMethodField()
     joined_products = ProductListSerializer(many=True, read_only=True)
+    joined_loans = FavoriteLoanSerializer(many=True, read_only=True)
+    joined_savings = FavoriteSavingsSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
@@ -60,6 +110,8 @@ class UserSerializer(serializers.ModelSerializer):
             "preferred_term",
             "risk_tolerance",
             "joined_products",
+            "joined_loans",
+            "joined_savings",
         )
 
     def get_has_usable_password(self, obj):

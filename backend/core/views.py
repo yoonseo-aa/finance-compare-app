@@ -11,7 +11,7 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Comment, FinancialProduct, Post
+from .models import Comment, FavoriteLoan, FavoriteSavings, FinancialProduct, Post
 from .permissions import IsOwnerOrReadOnly
 from .dashboard import build_dashboard
 from .recommendation import recommend_products
@@ -25,7 +25,7 @@ from .serializers import (
     SignupSerializer,
     UserSerializer,
 )
-from .services import FinlifeAPIError, fetch_finlife_loans, fetch_finlife_products, load_spot_price_data, naver_news_search, recommend_news_with_ai, seed_demo_products, youtube_search
+from .services import FinlifeAPIError, explain_recommendations_with_ai, fetch_finlife_loans, fetch_finlife_products, fetch_finlife_savings_products, load_spot_price_data, naver_news_search, recommend_news_with_ai, seed_demo_products, youtube_search
 from .social_auth import authenticate_social, build_authorization_url
 
 
@@ -281,6 +281,24 @@ def recommendations(request):
     return Response(data)
 
 
+@api_view(["POST"])
+def recommendation_ai_explain(request):
+    recommendation_type = request.data.get("recommendation_type", "deposit")
+    if recommendation_type not in {"deposit", "loan"}:
+        return Response({"detail": "recommendation_type은 deposit 또는 loan이어야 합니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+    recommendations = request.data.get("recommendations") or []
+    if not isinstance(recommendations, list):
+        return Response({"detail": "recommendations는 배열이어야 합니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+    result = explain_recommendations_with_ai(
+        recommendation_type=recommendation_type,
+        user_conditions=request.data.get("user_conditions") or {},
+        recommendations=recommendations[:5],
+    )
+    return Response(result)
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard(request):
@@ -332,6 +350,117 @@ def loans(request):
         return Response({"type": loan_type, "results": [], "error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     except requests.RequestException:
         return Response({"type": loan_type, "results": [], "error": "대출 상품 정보를 불러오지 못했습니다."}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+@api_view(["POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+def loan_join(request, loan_type, code):
+    if loan_type not in {"mortgage", "rent", "credit"}:
+        return Response({"detail": "지원하지 않는 대출 유형입니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == "DELETE":
+        FavoriteLoan.objects.filter(user=request.user, loan_type=loan_type, product_code=code).delete()
+        return Response(UserSerializer(request.user).data)
+
+    loan_type_labels = {
+        "mortgage": "주택담보대출",
+        "rent": "전세자금대출",
+        "credit": "개인신용대출",
+    }
+    payload = request.data or {}
+    name = (payload.get("name") or "").strip()
+    bank_name = (payload.get("bank_name") or "").strip()
+    if not name or not bank_name:
+        return Response({"detail": "대출 상품명과 금융회사명이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+    rate_min = payload.get("rate_min")
+    if rate_min in ("", None):
+        rate_min = None
+
+    FavoriteLoan.objects.update_or_create(
+        user=request.user,
+        loan_type=loan_type,
+        product_code=code,
+        defaults={
+            "name": name,
+            "bank_name": bank_name,
+            "loan_type_label": payload.get("loan_type_label") or loan_type_labels[loan_type],
+            "rate_min": rate_min,
+            "loan_limit": payload.get("loan_limit") or "",
+            "repay_type": payload.get("repay_type") or "",
+            "join_member": payload.get("join_member") or "",
+        },
+    )
+    return Response(UserSerializer(request.user).data)
+
+
+@api_view(["GET"])
+def savings(request):
+    try:
+        results = fetch_finlife_savings_products()
+        query = request.query_params.get("q", "").strip().lower()
+        bank = request.query_params.get("bank", "").strip()
+        code = request.query_params.get("code", "").strip()
+        sort = request.query_params.get("sort", "rate")
+
+        if query:
+            results = [
+                item for item in results
+                if query in item["name"].lower() or query in item["bank_name"].lower()
+            ]
+        if bank:
+            results = [item for item in results if item["bank_name"] == bank]
+        if code:
+            results = [item for item in results if item["product_code"] == code]
+
+        if sort == "bank":
+            results.sort(key=lambda item: (item["bank_name"], item["name"]))
+        elif sort == "name":
+            results.sort(key=lambda item: item["name"])
+        else:
+            results.sort(key=lambda item: item["rate_value"], reverse=True)
+
+        return Response({"results": results})
+    except FinlifeAPIError as exc:
+        return Response({"results": [], "error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    except requests.RequestException:
+        return Response({"results": [], "error": "저축상품 정보를 불러오지 못했습니다."}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+@api_view(["POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+def savings_join(request, code):
+    if request.method == "DELETE":
+        FavoriteSavings.objects.filter(user=request.user, product_code=code).delete()
+        return Response(UserSerializer(request.user).data)
+
+    payload = request.data or {}
+    name = (payload.get("name") or "").strip()
+    bank_name = (payload.get("bank_name") or "").strip()
+    if not name or not bank_name:
+        return Response({"detail": "저축상품명과 금융회사명이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+    rate_value = payload.get("rate_value")
+    if rate_value in ("", None):
+        rate_value = None
+
+    FavoriteSavings.objects.update_or_create(
+        user=request.user,
+        product_code=code,
+        defaults={
+            "name": name,
+            "bank_name": bank_name,
+            "product_type_label": payload.get("product_type_label") or "저축상품",
+            "product_subtype": payload.get("product_subtype") or "",
+            "rate_value": rate_value,
+            "rate_label": payload.get("rate_label") or "수익률",
+            "join_way": payload.get("join_way") or "",
+            "join_member": payload.get("join_member") or "",
+            "special_condition": payload.get("special_condition") or "",
+            "etc_note": payload.get("etc_note") or "",
+        },
+    )
+    return Response(UserSerializer(request.user).data)
 
 
 @api_view(["GET"])
